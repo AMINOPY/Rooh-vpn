@@ -20,7 +20,7 @@ class HttpsServerDirectory(
     baseUrl: String,
     private val connectTimeoutMs: Int = 4_000,
     private val readTimeoutMs: Int = 4_000
-) : ServerDirectory {
+) : CancellableServerDirectory {
     private val endpoint: URL
 
     init {
@@ -52,9 +52,11 @@ class HttpsServerDirectory(
         ).toURL()
     }
 
-    override fun discover(): List<ServerCandidate> {
+    override fun discover(cancellation: AutoConnectCancellation): List<ServerCandidate> {
+        if (cancellation.isCancelled()) throw InterruptedException("Discovery cancelled")
         val connection = endpoint.openConnection() as? HttpsURLConnection
             ?: throw IllegalStateException("HTTPS connection could not be created")
+        val cancellationRegistration = cancellation.onCancel { connection.disconnect() }
         connection.connectTimeout = connectTimeoutMs
         connection.readTimeout = readTimeoutMs
         connection.instanceFollowRedirects = false
@@ -64,6 +66,7 @@ class HttpsServerDirectory(
         connection.setRequestProperty("User-Agent", "ROH-VPN-Android")
 
         try {
+            if (cancellation.isCancelled()) throw InterruptedException("Discovery cancelled")
             val code = connection.responseCode
             if (code !in 200..299) {
                 throw IllegalStateException("Server directory returned HTTP $code")
@@ -81,6 +84,7 @@ class HttpsServerDirectory(
                 }
                 output.toByteArray()
             }
+            if (cancellation.isCancelled()) throw InterruptedException("Discovery cancelled")
             val root = JSONObject(String(bytes, StandardCharsets.UTF_8))
             require(root.optInt("version", -1) == API_VERSION) {
                 "Unsupported server directory response version"
@@ -90,6 +94,7 @@ class HttpsServerDirectory(
 
             return parseCandidates(servers)
         } finally {
+            cancellationRegistration.close()
             connection.disconnect()
         }
     }
