@@ -83,6 +83,23 @@ class ServerSelectorTest {
     }
 
     @Test
+    fun ranksWireGuardAsFallbackWithoutTcpProbingItsUdpEndpoint() {
+        val wireGuard = ServerCandidate("wg-fallback", "wg.example", 51820, "EU", "wireguard", priority = 5)
+        val xray = ServerCandidate("xray-primary", "xray.example", 443, "EU", "xray")
+        var probed = mutableListOf<String>()
+        val selector = ServerSelector(EndpointProbe { candidate ->
+            probed += candidate.id
+            22L
+        })
+
+        val ranked = selector.rank(listOf(wireGuard, xray))
+
+        assertEquals(listOf("xray-primary", "wg-fallback"), ranked.map { it.candidate.id })
+        assertEquals(listOf("xray-primary"), probed)
+        assertEquals(Long.MAX_VALUE, ranked.last().latencyMs)
+    }
+
+    @Test
     fun returnsNullWhenAllCandidatesFail() {
         val selector = ServerSelector(EndpointProbe { null })
 
