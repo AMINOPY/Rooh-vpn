@@ -8,15 +8,13 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.aminopy.roohvpn.core.EngineFailure
+import com.aminopy.roohvpn.core.EngineId
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-/**
- * Minimal, explicit-consent WireGuard flow. The user imports a profile from a
- * source they trust; no credentials or server endpoints are fabricated.
- * This is functional scaffolding, not the final product UI.
- */
+/** Explicit-consent WireGuard connection screen; no endpoints or credentials are fabricated. */
 class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var importButton: Button
@@ -25,22 +23,15 @@ class MainActivity : Activity() {
     private val worker: ExecutorService = Executors.newSingleThreadExecutor()
     private var pendingConfiguration: ByteArray? = null
     private var operationInProgress = false
+    private var lastStatus = "Import a WireGuard profile from a trusted provider."
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        buildControls()
-        renderInitialState()
-    }
-
-    private fun buildControls() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(32, 48, 32, 32)
         }
-        status = TextView(this).apply {
-            textSize = 17f
-            text = "RØH VPN"
-        }
+        status = TextView(this).apply { textSize = 17f }
         importButton = Button(this).apply {
             text = "Import WireGuard profile"
             setOnClickListener { chooseProfile() }
@@ -58,17 +49,20 @@ class MainActivity : Activity() {
         root.addView(connectButton)
         root.addView(disconnectButton)
         setContentView(root)
+        renderState()
     }
 
-    private fun renderInitialState() {
+    private fun renderState() {
         val active = (application as RoohVpnApplication).connectionCoordinator.activeEngine()
         status.text = when {
-            active != null -> "Engine active: $active"
-            pendingConfiguration != null -> "WireGuard profile imported. Ready to request VPN permission."
-            else -> "Import a WireGuard profile from a trusted provider. No server directory is configured yet."
+            operationInProgress -> lastStatus
+            active != null -> "Engine active: $active\n$lastStatus"
+            pendingConfiguration != null -> "WireGuard profile is loaded in memory.\n$lastStatus"
+            else -> lastStatus
         }
         connectButton.isEnabled = !operationInProgress && pendingConfiguration != null && active == null
         disconnectButton.isEnabled = !operationInProgress && active != null
+        importButton.isEnabled = !operationInProgress && active == null
     }
 
     private fun chooseProfile() {
@@ -79,63 +73,27 @@ class MainActivity : Activity() {
         startActivityForResult(intent, REQUEST_PROFILE)
     }
 
-    @Deprecated("Use Activity Result APIs when the app adds the AndroidX Activity dependency.")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQUEST_PROFILE || resultCode != RESULT_OK) return
-        val uri = data?.data ?: return
-        try {
-            val bytes = contentResolver.openInputStream(uri)?.use { input ->
-                val output = ByteArrayOutputStream()
-                val buffer = ByteArray(4096)
-                var total = 0
-                while (true) {
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    total += count
-                    if (total > MAX_CONFIG_BYTES) throw IllegalArgumentException("Profile exceeds 64 KiB.")
-                    output.write(buffer, 0, count)
-                }
-                output.toByteArray()
-            } ?: throw IllegalArgumentException("Could not read the selected profile.")
-            if (bytes.isEmpty()) throw IllegalArgumentException("The selected profile is empty.")
-            pendingConfiguration?.fill(0)
-            pendingConfiguration = bytes
-            status.text = "Profile loaded in memory. The private key is not saved by this screen."
-        } catch (_: Exception) {
-            status.text = "Profile could not be read. Check the file and try again."
-        }
-        renderInitialState()
-    }
-
-    private fun requestVpnConsentAndConnect() {
-        if (operationInProgress) return
-        if (pendingConfiguration == null) {
-            status.text = "Import a WireGuard profile first."
-            return
-        }
-        val consentIntent = VpnService.prepare(this)
-        if (consentIntent != null) {
-            startActivityForResult(consentIntent, REQUEST_VPN_CONSENT)
-        } else {
-            connectImportedProfile()
-        }
-    }
-
-    @Deprecated("Use Activity Result APIs when the app adds the AndroidX Activity dependency.")
+    @Deprecated("Legacy result API retained to avoid adding a UI dependency solely for this screen.")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         when (requestCode) {
             REQUEST_PROFILE -> if (resultCode == RESULT_OK) loadSelectedProfile(data)
-            REQUEST_VPN_CONSENT -> if (resultCode == RESULT_OK) connectImportedProfile() else {
-                status.text = "VPN permission was not granted."
-                renderInitialState()
+            REQUEST_VPN_CONSENT -> if (resultCode == RESULT_OK) {
+                connectImportedProfile()
+            } else {
+                lastStatus = "VPN permission was not granted."
+                renderState()
             }
         }
     }
 
     private fun loadSelectedProfile(data: Intent?) {
-        val uri = data?.data ?: return
+        val uri = data?.data
+        if (uri == null) {
+            lastStatus = "No profile was selected."
+            renderState()
+            return
+        }
         try {
             val bytes = contentResolver.openInputStream(uri)?.use { input ->
                 val output = ByteArrayOutputStream()
@@ -150,40 +108,47 @@ class MainActivity : Activity() {
                 }
                 output.toByteArray()
             } ?: throw IllegalArgumentException("Could not read profile")
-            require(bytes.isNotEmpty())
+            require(bytes.isNotEmpty()) { "Profile is empty" }
             pendingConfiguration?.fill(0)
             pendingConfiguration = bytes
-            status.text = "WireGuard profile loaded in memory."
+            lastStatus = "Profile loaded in memory only; this screen does not save the private key."
         } catch (_: Exception) {
-            status.text = "Profile could not be read. Check the file and try again."
+            lastStatus = "Profile could not be read or exceeds the 64 KiB limit."
         }
-        renderInitialState()
+        renderState()
+    }
+
+    private fun requestVpnConsentAndConnect() {
+        if (operationInProgress || pendingConfiguration == null) return
+        val consentIntent = VpnService.prepare(this)
+        if (consentIntent != null) startActivityForResult(consentIntent, REQUEST_VPN_CONSENT)
+        else connectImportedProfile()
     }
 
     private fun connectImportedProfile() {
-        val source = pendingConfiguration?.copyOf()
-        if (source == null || operationInProgress) return
+        val source = pendingConfiguration?.copyOf() ?: return
+        if (operationInProgress) {
+            source.fill(0)
+            return
+        }
         operationInProgress = true
-        renderInitialState()
-        status.text = "Starting WireGuard…"
+        lastStatus = "Starting WireGuard…"
+        renderState()
         worker.execute {
             val failure = try {
-                (application as RoohVpnApplication).connectionCoordinator
-                    .connect(com.aminopy.roohvpn.core.EngineId.WIREGUARD, source)
+                (application as RoohVpnApplication).connectionCoordinator.connect(EngineId.WIREGUARD, source)
             } catch (_: Exception) {
                 source.fill(0)
-                com.aminopy.roohvpn.core.EngineFailure(
-                    "CONNECTION_FAILED", "Could not start the VPN connection.", true
-                )
+                EngineFailure("CONNECTION_FAILED", "Could not start the VPN connection.", true)
             }
             runOnUiThread {
                 operationInProgress = false
-                status.text = if (failure == null) {
-                    "WireGuard reports the engine is running. Verify traffic/DNS on a device before treating this as production-ready."
+                lastStatus = if (failure == null) {
+                    "WireGuard reports RUNNING. End-to-end traffic/DNS still requires device testing."
                 } else {
                     "Connection failed: ${failure.safeMessage}"
                 }
-                renderInitialState()
+                renderState()
             }
         }
     }
@@ -191,32 +156,29 @@ class MainActivity : Activity() {
     private fun disconnect() {
         if (operationInProgress) return
         operationInProgress = true
-        renderInitialState()
-        status.text = "Stopping WireGuard…"
+        lastStatus = "Stopping WireGuard…"
+        renderState()
         worker.execute {
             val failure = try {
                 (application as RoohVpnApplication).connectionCoordinator.disconnect()
             } catch (_: Exception) {
-                com.aminopy.roohvpn.core.EngineFailure(
-                    "DISCONNECT_FAILED", "Could not confirm a clean disconnect.", true
-                )
+                EngineFailure("DISCONNECT_FAILED", "Could not confirm a clean disconnect.", true)
             }
             runOnUiThread {
                 operationInProgress = false
                 if (failure == null) {
                     pendingConfiguration?.fill(0)
                     pendingConfiguration = null
-                    status.text = "Disconnected."
+                    lastStatus = "Disconnected."
                 } else {
-                    status.text = "Disconnect not confirmed: ${failure.safeMessage}"
+                    lastStatus = "Disconnect not confirmed: ${failure.safeMessage}"
                 }
-                renderInitialState()
+                renderState()
             }
         }
     }
 
     override fun onDestroy() {
-        // The active backend owns the live tunnel; only clear the screen's copy.
         pendingConfiguration?.fill(0)
         pendingConfiguration = null
         worker.shutdown()
