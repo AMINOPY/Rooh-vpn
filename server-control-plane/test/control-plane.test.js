@@ -27,6 +27,14 @@ test("health endpoint is available without secrets and is not cacheable", async 
   assert.equal(response.headers.get("cache-control"), "no-store");
 });
 
+test("profile provisioning requires a bearer token", async () => {
+  const response = await worker.fetch(new Request("https://unit.test/v1/servers/eu-1/profile"), {
+    DB: { prepare() { throw new Error("DB must not be queried before auth"); } },
+  });
+  assert.equal(response.status, 401);
+  assert.equal(response.headers.get("www-authenticate"), "Bearer");
+});
+
 test("unknown routes fail closed", async () => {
   const response = await worker.fetch(new Request("https://unit.test/admin"), {});
   assert.equal(response.status, 404);
