@@ -3,7 +3,7 @@ package com.aminopy.roohvpn.server
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
-import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 import java.nio.charset.StandardCharsets
 import javax.net.ssl.HttpsURLConnection
@@ -28,11 +28,28 @@ class HttpsServerDirectory(
         require(readTimeoutMs in 250..15_000)
         val normalized = baseUrl.trim().trimEnd('/')
         require(normalized.isNotBlank()) { "A trusted server-directory URL is required" }
-        val parsed = URL("$normalized/v1/servers")
-        require(parsed.protocol.equals("https", ignoreCase = true)) {
+
+        val base = URI(normalized)
+        require(base.scheme.equals("https", ignoreCase = true)) {
             "Server directory must use HTTPS"
         }
-        endpoint = parsed
+        require(!base.host.isNullOrBlank() && base.rawUserInfo == null &&
+            base.rawQuery == null && base.rawFragment == null
+        ) {
+            "Server directory URL must contain only an HTTPS host and optional path"
+        }
+        require(base.path.split('/').none { it == "." || it == ".." }) {
+            "Server directory URL path must not contain dot segments"
+        }
+        endpoint = URI(
+            base.scheme,
+            null,
+            base.host,
+            base.port,
+            base.path.trimEnd('/') + "/v1/servers",
+            null,
+            null
+        ).toURL()
     }
 
     override fun discover(): List<ServerCandidate> {
@@ -40,6 +57,8 @@ class HttpsServerDirectory(
             ?: throw IllegalStateException("HTTPS connection could not be created")
         connection.connectTimeout = connectTimeoutMs
         connection.readTimeout = readTimeoutMs
+        connection.instanceFollowRedirects = false
+        connection.useCaches = false
         connection.requestMethod = "GET"
         connection.setRequestProperty("Accept", "application/json")
         connection.setRequestProperty("User-Agent", "ROH-VPN-Android")
