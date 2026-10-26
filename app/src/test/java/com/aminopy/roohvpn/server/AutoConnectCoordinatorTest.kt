@@ -65,6 +65,76 @@ class AutoConnectCoordinatorTest {
     }
 
     @Test
+    fun appliesExponentialBackoffBetweenCandidateAttempts() {
+        val backend = FakeBackend()
+        val first = server.copy(id = "first")
+        val second = server.copy(id = "second")
+        val delays = mutableListOf<Long>()
+        val coordinator = AutoConnectCoordinator(
+            directory = ServerDirectory { listOf(first, second) },
+            selector = ServerSelector(EndpointProbe { candidate ->
+                if (candidate.id == first.id) 10L else 20L
+            }),
+            profiles = ServerProfileProvider { candidate ->
+                if (candidate.id == first.id) error("simulated provider failure")
+                byteArrayOf(4, 5, 6)
+            },
+            connections = ConnectionCoordinator(EngineRegistry(listOf(backend))),
+            retryDelay = RetryDelay { delays += it }
+        )
+
+        val result = coordinator.connect()
+
+        assertTrue(result.connected)
+        assertEquals(listOf(200L), delays)
+        assertEquals(second.id, result.selectedServer?.id)
+    }
+
+    @Test
+    fun cancellationBeforeDiscoveryStopsWithoutNetworkWork() {
+        var discoveryCalls = 0
+        val cancellation = AutoConnectCancellation().apply { cancel() }
+        val coordinator = AutoConnectCoordinator(
+            directory = ServerDirectory {
+                discoveryCalls++
+                listOf(server)
+            },
+            selector = ServerSelector(EndpointProbe { 10L }),
+            profiles = ServerProfileProvider { byteArrayOf(1) },
+            connections = ConnectionCoordinator(EngineRegistry(listOf(FakeBackend()))),
+            retryDelay = RetryDelay { }
+        )
+
+        val result = coordinator.connect(cancellation)
+
+        assertEquals("CONNECTION_CANCELLED", result.failure?.code)
+        assertEquals(0, discoveryCalls)
+    }
+
+    @Test
+    fun cancellationAfterProfileProvisioningClearsSecretAndDoesNotStartEngine() {
+        val backend = FakeBackend()
+        val secret = byteArrayOf(9, 8, 7)
+        val cancellation = AutoConnectCancellation()
+        val coordinator = AutoConnectCoordinator(
+            directory = ServerDirectory { listOf(server) },
+            selector = ServerSelector(EndpointProbe { 10L }),
+            profiles = ServerProfileProvider {
+                cancellation.cancel()
+                secret
+            },
+            connections = ConnectionCoordinator(EngineRegistry(listOf(backend))),
+            retryDelay = RetryDelay { }
+        )
+
+        val result = coordinator.connect(cancellation)
+
+        assertEquals("CONNECTION_CANCELLED", result.failure?.code)
+        assertTrue(secret.all { it.toInt() == 0 })
+        assertEquals(0, backend.startCalls)
+    }
+
+    @Test
     fun emptyDirectoryDoesNotAttemptToConnect() {
         val backend = FakeBackend()
         val coordinator = AutoConnectCoordinator(
