@@ -98,12 +98,18 @@ async function issueProfile(request, env, serverId) {
   if (issued.serverId !== row.id || norm(issued.engine) !== norm(row.engine) || typeof issued.configuration !== "string") return json({ error: "invalid_profile_response" }, 502);
   const configBytes = new TextEncoder().encode(issued.configuration);
   if (configBytes.length < 1 || configBytes.length > MAX_PROFILE_BYTES) return json({ error: "invalid_profile_response" }, 502);
+  const now = Math.floor(Date.now() / 1000);
+  if (!Number.isInteger(issued.expiresAtEpochSeconds) || issued.expiresAtEpochSeconds <= now) {
+    return json({ error: "invalid_profile_response" }, 502);
+  }
+  // Never extend the provisioner's own credential lifetime.
+  const expiresAtEpochSeconds = Math.min(issued.expiresAtEpochSeconds, now + PROFILE_TTL_SECONDS);
 
   return json({
     version: 1,
     serverId: row.id,
     engine: row.engine,
-    expiresAtEpochSeconds: Math.floor(Date.now() / 1000) + PROFILE_TTL_SECONDS,
+    expiresAtEpochSeconds,
     configuration: issued.configuration,
   });
 }
