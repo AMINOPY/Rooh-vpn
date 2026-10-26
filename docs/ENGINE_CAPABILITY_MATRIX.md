@@ -13,7 +13,7 @@ This is a design and verification matrix, not a claim that the listed engines ar
 | Server auto-discovery | Requires a directory/service | Upstream app modes may use upstream services; RØH needs its own authorized integration | Requires a directory/service | Requires peer provisioning/service |
 | One-tap without manual profile | Requires authorized provisioning | Possible only when upstream service modes remain available and legally/technically appropriate | Requires authorized provisioning | Requires valid peer keys/config from an authorized source |
 | Native ABI packaging | Pin and build the chosen Go/native integration | Rust and tunnel native components; inspect upstream build | Pin and build Android-supported native integration | Use supported Android backend/native components |
-| RØH status | Not integrated | Reference review only | Not integrated | Not integrated |
+| RØH status | Not integrated | Reference review only | Not integrated | Adapter and consent-driven profile flow added; end-to-end traffic not verified |
 
 ## Adapter contract requirements
 
