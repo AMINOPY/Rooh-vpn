@@ -66,8 +66,8 @@ class WireGuardEngineBackend(context: Context) : EngineBackend {
         }
 
         return try {
-            val state = backend.setState(tunnel, Tunnel.Tunnel.State.UP, parsed)
-            if (state == Tunnel.Tunnel.State.UP) null else EngineFailure(
+            val state = backend.setState(tunnel, Tunnel.State.UP, parsed)
+            if (state == Tunnel.State.UP) null else EngineFailure(
                 code = "WIREGUARD_NOT_RUNNING",
                 safeMessage = "WireGuard did not confirm that the tunnel is running.",
                 retryable = true
@@ -90,15 +90,15 @@ class WireGuardEngineBackend(context: Context) : EngineBackend {
         }
         return EngineStatus(
             engineId = id,
-            state = if (state == Tunnel.Tunnel.State.UP) EngineState.RUNNING else EngineState.STOPPED
+            state = if (state == Tunnel.State.UP) EngineState.RUNNING else EngineState.STOPPED
         )
     }
 
     @Synchronized
     override fun stop(): EngineFailure? {
         return try {
-            val state = backend.setState(tunnel, Tunnel.Tunnel.State.DOWN, null)
-            if (state == Tunnel.Tunnel.State.DOWN) null else EngineFailure(
+            val state = backend.setState(tunnel, Tunnel.State.DOWN, null)
+            if (state == Tunnel.State.DOWN) null else EngineFailure(
                 code = "WIREGUARD_STOP_UNCONFIRMED",
                 safeMessage = "WireGuard did not confirm that the tunnel stopped.",
                 retryable = true
