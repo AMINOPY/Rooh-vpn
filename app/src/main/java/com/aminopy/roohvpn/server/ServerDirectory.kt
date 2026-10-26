@@ -74,18 +74,47 @@ data class RankedServer(
  * preliminary filter, not proof that a VPN handshake or tunnel works.
  */
 class ServerSelector(private val probe: EndpointProbe) {
-    fun select(candidates: List<ServerCandidate>): RankedServer? =
-        candidates.asSequence()
-            .mapNotNull { candidate ->
-                val latency = runCatching { probe.measureLatency(candidate) }.getOrNull()
-                    ?: return@mapNotNull null
-                if (latency < 0) return@mapNotNull null
-                RankedServer(candidate, latency)
+    fun select(candidates: List<ServerCandidate>): RankedServer? {
+        if (candidates.isEmpty()) return null
+
+        // Bound work even if a directory returns hundreds of valid endpoints.
+        // Provider priority and stable IDs choose the probe window; latency
+        // ranks the reachable candidates inside that window.
+        val bounded = candidates
+            .sortedWith(compareByDescending<ServerCandidate> { it.priority }.thenBy { it.id })
+            .take(MAX_CANDIDATES)
+
+        val executor = java.util.concurrent.Executors.newFixedThreadPool(MAX_PARALLEL_PROBES) { task ->
+            Thread(task, "roohvpn-endpoint-probe").apply { isDaemon = true }
+        }
+        return try {
+            val tasks = bounded.map { candidate ->
+                java.util.concurrent.Callable {
+                    val latency = runCatching { probe.measureLatency(candidate) }.getOrNull()
+                    if (latency == null || latency < 0L) null else RankedServer(candidate, latency)
+                }
             }
-            .sortedWith(
-                compareBy<RankedServer> { it.latencyMs }
-                    .thenByDescending { it.candidate.priority }
-                    .thenBy { it.candidate.id }
-            )
-            .firstOrNull()
+            val futures = executor.invokeAll(tasks, TOTAL_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+            futures.asSequence()
+                .filterNot { it.isCancelled }
+                .mapNotNull { future -> runCatching { future.get() }.getOrNull() }
+                .sortedWith(
+                    compareBy<RankedServer> { it.latencyMs }
+                        .thenByDescending { it.candidate.priority }
+                        .thenBy { it.candidate.id }
+                )
+                .firstOrNull()
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            null
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    private companion object {
+        const val MAX_CANDIDATES = 32
+        const val MAX_PARALLEL_PROBES = 8
+        const val TOTAL_TIMEOUT_MS = 8_000L
+    }
 }
