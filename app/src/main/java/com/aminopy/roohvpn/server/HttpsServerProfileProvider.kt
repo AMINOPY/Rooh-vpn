@@ -53,7 +53,7 @@ class HttpsServerProfileProvider(
         ).toURL()
         val token = authorization.tokenFor(candidate)
             ?.takeIf { it.isNotBlank() && it.length <= MAX_TOKEN_CHARS &&
-                it.none { ch -> ch <= ' ' || ch == '\\u007f' } }
+                it.none { ch -> ch <= ' ' || ch.code == 127 } }
             ?: throw IllegalStateException("Profile authorization is unavailable")
 
         val connection = endpoint.openConnection() as? HttpsURLConnection
