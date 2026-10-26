@@ -51,6 +51,7 @@ This checklist is a product-engineering plan based on publicly described user-fa
 
 ## Provider and service integrations
 
+- [x] Investigated a public community server-directory candidate; see [PUBLIC_SERVER_DIRECTORY_RESEARCH.md](PUBLIC_SERVER_DIRECTORY_RESEARCH.md). The candidate is OpenVPN-only and cannot be used by the current WireGuard-only build, so it is not enabled as a default source.
 - [ ] RØH-operated infrastructure and abuse/availability monitoring, or a provider-authorized integration.
 - [ ] Server inventory, capacity, region, health, and maintenance metadata.
 - [ ] Secure account or anonymous entitlement model with rate limiting and abuse prevention.
