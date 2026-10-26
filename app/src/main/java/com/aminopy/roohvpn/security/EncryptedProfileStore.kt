@@ -11,11 +11,11 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * Small encrypted-at-rest store for a single selected profile.
+ * Encrypted-at-rest store for multiple saved profiles.
  *
- * Profile data is encrypted with AES-256-GCM using a non-exportable Android
- * Keystore key. This class deliberately does not synchronize profile data to
- * cloud backup. Callers must still avoid logging profile values.
+ * Each profile uses AES-256-GCM with a fresh random IV and a non-exportable
+ * Android Keystore key. Profile JSON is authenticated on decrypt. Callers must
+ * still avoid logging profile values and should pass ephemeral copies to engines.
  */
 class EncryptedProfileStore(context: Context) {
     private val preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
@@ -27,20 +27,21 @@ class EncryptedProfileStore(context: Context) {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
         val ciphertext = cipher.doFinal(profileJson.toByteArray(Charsets.UTF_8))
-        val iv = Base64.encodeToString(cipher.iv, Base64.NO_WRAP)
-        val data = Base64.encodeToString(ciphertext, Base64.NO_WRAP)
+        val prefix = keyPrefix(profileId)
+        val currentIds = preferences.getStringSet(KEY_IDS, emptySet()).orEmpty().toMutableSet()
+        currentIds += profileId
 
         check(preferences.edit()
-            .putString(KEY_ID, profileId)
-            .putString(KEY_IV, iv)
-            .putString(KEY_DATA, data)
+            .putString("${prefix}_iv", Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
+            .putString("${prefix}_data", Base64.encodeToString(ciphertext, Base64.NO_WRAP))
+            .putStringSet(KEY_IDS, currentIds)
             .commit()) { "Could not persist encrypted profile" }
     }
 
-    fun load(): StoredProfile? {
-        val id = preferences.getString(KEY_ID, null) ?: return null
-        val iv = preferences.getString(KEY_IV, null) ?: return null
-        val data = preferences.getString(KEY_DATA, null) ?: return null
+    fun load(profileId: String): StoredProfile? {
+        val prefix = keyPrefix(profileId)
+        val iv = preferences.getString("${prefix}_iv", null) ?: return null
+        val data = preferences.getString("${prefix}_data", null) ?: return null
 
         return try {
             val cipher = Cipher.getInstance(TRANSFORMATION)
@@ -50,17 +51,39 @@ class EncryptedProfileStore(context: Context) {
                 GCMParameterSpec(TAG_BITS, Base64.decode(iv, Base64.NO_WRAP))
             )
             val clear = cipher.doFinal(Base64.decode(data, Base64.NO_WRAP))
-            StoredProfile(id, clear.toString(Charsets.UTF_8))
-        } catch (exception: Exception) {
-            // Fail closed: do not return corrupted or unauthenticated profile data.
-            clear()
+            StoredProfile(profileId, clear.toString(Charsets.UTF_8))
+        } catch (_: Exception) {
+            // Fail closed: remove corrupted data and never return unauthenticated text.
+            delete(profileId)
             null
         }
     }
 
-    fun clear() {
-        check(preferences.edit().clear().commit()) { "Could not clear encrypted profile" }
+    fun listProfiles(): List<StoredProfile> =
+        preferences.getStringSet(KEY_IDS, emptySet()).orEmpty()
+            .sorted()
+            .mapNotNull(::load)
+
+    fun delete(profileId: String) {
+        val prefix = keyPrefix(profileId)
+        val ids = preferences.getStringSet(KEY_IDS, emptySet()).orEmpty().toMutableSet()
+        ids.remove(profileId)
+        check(preferences.edit()
+            .remove("${prefix}_iv")
+            .remove("${prefix}_data")
+            .putStringSet(KEY_IDS, ids)
+            .commit()) { "Could not delete encrypted profile" }
     }
+
+    fun clear() {
+        check(preferences.edit().clear().commit()) { "Could not clear encrypted profiles" }
+    }
+
+    private fun keyPrefix(profileId: String): String =
+        "profile_" + Base64.encodeToString(
+            profileId.toByteArray(Charsets.UTF_8),
+            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
+        )
 
     private fun getOrCreateKey(): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
@@ -89,8 +112,6 @@ class EncryptedProfileStore(context: Context) {
         const val ANDROID_KEY_STORE = "AndroidKeyStore"
         const val TRANSFORMATION = "AES/GCM/NoPadding"
         const val TAG_BITS = 128
-        const val KEY_ID = "profile_id"
-        const val KEY_IV = "profile_iv"
-        const val KEY_DATA = "profile_data"
+        const val KEY_IDS = "profile_ids"
     }
 }
