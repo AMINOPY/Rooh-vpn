@@ -36,15 +36,21 @@ class EncryptedProfileStore(context: Context) {
         } finally {
             clear.fill(0)
         }
-        val prefix = keyPrefix(profileId)
-        val currentIds = preferences.getStringSet(KEY_IDS, emptySet()).orEmpty().toMutableSet()
-        currentIds += profileId
+        try {
+            val prefix = keyPrefix(profileId)
+            val currentIds = preferences.getStringSet(KEY_IDS, emptySet()).orEmpty().toMutableSet()
+            currentIds += profileId
 
-        check(preferences.edit()
-            .putString("${prefix}_iv", Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
-            .putString("${prefix}_data", Base64.encodeToString(ciphertext, Base64.NO_WRAP))
-            .putStringSet(KEY_IDS, currentIds)
-            .commit()) { "Could not persist encrypted profile" }
+            check(preferences.edit()
+                .putString("${prefix}_iv", Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
+                .putString("${prefix}_data", Base64.encodeToString(ciphertext, Base64.NO_WRAP))
+                .putStringSet(KEY_IDS, currentIds)
+                .commit()) { "Could not persist encrypted profile" }
+        } finally {
+            // SharedPreferences retains only the encoded ciphertext; clear the
+            // transient raw ciphertext as soon as the synchronous write finishes.
+            ciphertext.fill(0)
+        }
     }
 
     fun load(profileId: String): StoredProfile? {
@@ -59,7 +65,12 @@ class EncryptedProfileStore(context: Context) {
                 getOrCreateKey(),
                 GCMParameterSpec(TAG_BITS, Base64.decode(iv, Base64.NO_WRAP))
             )
-            val clear = cipher.doFinal(Base64.decode(data, Base64.NO_WRAP))
+            val encrypted = Base64.decode(data, Base64.NO_WRAP)
+            val clear = try {
+                cipher.doFinal(encrypted)
+            } finally {
+                encrypted.fill(0)
+            }
             try {
                 StoredProfile(profileId, clear.toString(Charsets.UTF_8))
             } finally {
