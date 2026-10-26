@@ -53,7 +53,7 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
         } catch (_: Exception) {
             // Native adapters are untrusted boundaries: exceptions must not
             // escape to UI or leave a partially started process running.
-            candidate?.let { cleanupAfterFailedStart(it) }
+            candidate?.let(::cleanupAfterFailedStart)
             EngineFailure(
                 code = "ENGINE_INTERNAL_ERROR",
                 safeMessage = "The VPN engine failed unexpectedly.",
@@ -62,6 +62,24 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
         } finally {
             configuration.fill(0)
         }
+    }
+
+    /**
+     * A failed cleanup must reserve the backend so a second engine cannot
+     * start over a possibly live tunnel. A null stop result is the adapter's
+     * explicit confirmation that cleanup completed.
+     */
+    private fun cleanupAfterFailedStart(backend: EngineBackend) {
+        val cleanupFailure = try {
+            backend.stop()
+        } catch (_: Exception) {
+            EngineFailure(
+                code = "ENGINE_CLEANUP_FAILED",
+                safeMessage = "The VPN engine could not be cleaned up safely.",
+                retryable = true
+            )
+        }
+        if (cleanupFailure != null) activeBackend = backend
     }
 
     fun disconnect(): EngineFailure? = synchronized(lock) {
@@ -79,20 +97,6 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
                 retryable = true
             )
         }
-    }
-
-    /** Keep the backend reserved if cleanup is not positively confirmed. */
-    private fun cleanupAfterFailedStart(backend: EngineBackend) {
-        val cleanupFailure = try {
-            backend.stop()
-        } catch (_: Exception) {
-            EngineFailure(
-                code = "ENGINE_CLEANUP_FAILED",
-                safeMessage = "The VPN engine could not be cleaned up after a failed start.",
-                retryable = true
-            )
-        }
-        if (cleanupFailure != null) activeBackend = backend
     }
 
     fun activeEngine(): EngineId? = synchronized(lock) {
