@@ -49,6 +49,23 @@ class ServerSelectorTest {
     }
 
     @Test
+    fun doesNotUseTcpProbeForWireGuardUdpEndpoints() {
+        var probeCalls = 0
+        val lowPriority = ServerCandidate("wg-low", "low.example", 51820, "EU", "wireguard", priority = 1)
+        val highPriority = ServerCandidate("wg-high", "high.example", 51820, "EU", "wireguard", priority = 10)
+        val selector = ServerSelector(EndpointProbe {
+            probeCalls++
+            null
+        })
+
+        val selected = selector.select(listOf(lowPriority, highPriority))
+
+        assertEquals("wg-high", selected?.candidate?.id)
+        assertEquals(Long.MAX_VALUE, selected?.latencyMs)
+        assertEquals(0, probeCalls)
+    }
+
+    @Test
     fun returnsNullWhenAllCandidatesFail() {
         val selector = ServerSelector(EndpointProbe { null })
 
