@@ -1,5 +1,7 @@
 # RØH VPN capability backlog (Hiddify / Proton-inspired)
 
+> Coordinated release gate for the three remaining tracks (real packet path/network lifecycle, Aether/Xray/sing-box integration, and operated RØH infrastructure): see [THREE_TRACK_COMPLETION_GATE.md](THREE_TRACK_COMPLETION_GATE.md). These tracks must all pass; no engine or server may be represented as operational before real traffic tests.
+
 This checklist is a product-engineering plan based on publicly described user-facing capabilities. It does not copy proprietary implementation, branding, server infrastructure, or credentials. UI redesign is intentionally deferred while the core is being built.
 
 ## Connection and server experience
