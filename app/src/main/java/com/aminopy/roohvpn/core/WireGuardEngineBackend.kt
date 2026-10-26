@@ -44,12 +44,7 @@ class WireGuardEngineBackend(context: Context) : EngineBackend {
         if (configuration.isEmpty() || configuration.size > MAX_CONFIG_BYTES) {
             return invalidConfiguration()
         }
-        return try {
-            val parsed = parse(configuration)
-            if (parsed.getPeers().isEmpty()) invalidConfiguration() else null
-        } catch (_: Exception) {
-            invalidConfiguration()
-        }
+        return if (WireGuardProfileParser.parse(configuration) != null) null else invalidConfiguration()
     }
 
     @Synchronized
@@ -57,13 +52,7 @@ class WireGuardEngineBackend(context: Context) : EngineBackend {
         if (configuration.isEmpty() || configuration.size > MAX_CONFIG_BYTES) {
             return invalidConfiguration()
         }
-        val parsed = try {
-            parse(configuration).also {
-                if (it.getPeers().isEmpty()) return invalidConfiguration()
-            }
-        } catch (_: Exception) {
-            return invalidConfiguration()
-        }
+        val parsed = WireGuardProfileParser.parse(configuration) ?: return invalidConfiguration()
 
         return try {
             val state = backend.setState(tunnel, Tunnel.State.UP, parsed)
@@ -112,9 +101,6 @@ class WireGuardEngineBackend(context: Context) : EngineBackend {
         }
     }
 
-    private fun parse(configuration: ByteArray): Config =
-        ByteArrayInputStream(configuration).use { Config.parse(it) }
-
     private fun invalidConfiguration() = EngineFailure(
         code = "WIREGUARD_INVALID_CONFIG",
         safeMessage = "The WireGuard profile is invalid or unsupported.",
@@ -131,4 +117,19 @@ class WireGuardEngineBackend(context: Context) : EngineBackend {
 object DefaultEngineRegistry {
     fun create(context: Context): EngineRegistry =
         EngineRegistry(listOf(WireGuardEngineBackend(context.applicationContext)))
+}
+
+/** Pure profile parsing boundary so malformed/oversized input can be unit-tested. */
+internal object WireGuardProfileParser {
+    fun parse(configuration: ByteArray): Config? {
+        if (configuration.isEmpty() || configuration.size > MAX_CONFIG_BYTES) return null
+        return try {
+            ByteArrayInputStream(configuration).use { Config.parse(it) }
+                .takeIf { it.getPeers().isNotEmpty() }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private const val MAX_CONFIG_BYTES = 64 * 1024
 }
