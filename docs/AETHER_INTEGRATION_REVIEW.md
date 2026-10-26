@@ -30,3 +30,16 @@ Do not wholesale-copy the Aether application. Instead:
 7. Do not report Aether as available until all gates pass.
 
 No Aether binaries, keys, server lists, branding, or app code are included in this repository by this review.
+
+## Concrete build boundary confirmed
+
+The reviewed upstream tree at commit `b3f7a501cb2e2106b5fc43a6ee15310042c520e6` is an Android application, not a published standalone Android library/AAR. Its native build script describes separate outputs: `libaether.so` (Rust engine), `libhev-socks5-tunnel.so` (packet-forwarding core), and `libaethertun.so` (the project's own JNI bridge). Its `AetherVpnService` supervises the engine's local SOCKS5 listener and the TUN bridge together. Therefore, adding a Maven coordinate or just registering `EngineId.AETHER` would not create a working tunnel.
+
+## Current RØH implementation state
+
+- `EngineId.AETHER` is recognized by server-candidate parsing, but the production registry must not advertise it yet.
+- RØH currently has no bundled Aether/hev native libraries, no Aether JNI bridge, and no Aether-specific service lifecycle adapter.
+- The next implementation slice must pin the upstream revision, fetch/build native source reproducibly for supported ABIs, port only the minimum licensed runtime boundary, and wire TUN descriptor ownership, local SOCKS readiness, stop/cleanup, and VPN permission lifecycle into RØH's service.
+- CI must build/package the native libraries and test the adapter contract. A physical-device or emulator test must confirm real HTTPS traffic and DNS/IPv4/IPv6 behavior before the registry/UI exposes Aether as available.
+
+Until those conditions pass, Aether support remains **reviewed but not integrated**. No success status or fake adapter is used to imply otherwise.
