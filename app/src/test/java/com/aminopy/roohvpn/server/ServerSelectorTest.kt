@@ -33,6 +33,22 @@ class ServerSelectorTest {
     }
 
     @Test
+    fun boundsProbeCountForLargeDirectory() {
+        var probeCalls = 0
+        val candidates = (0 until 40).map { index ->
+            ServerCandidate("server-$index", "server-$index.example", 443, "EU", "xray")
+        }
+        val selector = ServerSelector(EndpointProbe {
+            synchronized(this) { probeCalls++ }
+            25L
+        })
+
+        selector.select(candidates)
+
+        assertEquals(32, probeCalls)
+    }
+
+    @Test
     fun returnsNullWhenAllCandidatesFail() {
         val selector = ServerSelector(EndpointProbe { null })
 
