@@ -12,7 +12,8 @@ This checklist is a product-engineering plan based on publicly described user-fa
 - [ ] Operated RØH server-directory endpoint.
 - [ ] Authenticated profile provisioning and short-lived credentials.
 - [ ] Real engine handshake + HTTP/DNS traffic test before reporting connected.
-- [ ] Bounded retry/backoff, cancellation, and automatic recovery after network changes.
+- [x] Bounded fallback across up to three ranked server candidates when profile provisioning or engine start fails (without retrying over an unconfirmed active tunnel).
+- [ ] Exponential backoff, cancellation of in-flight discovery/provisioning, and automatic recovery after network changes.
 - [ ] Favorite/last-known-good endpoint persistence and health history.
 
 ## Engine and tunnel
