@@ -4,22 +4,22 @@
 
 Build a reliable Android VPN client named **RØH VPN**. The current scope is the networking/core foundation only. A visual redesign and animation work are deferred.
 
-This is an implementation plan, not a claim that these components are already present or working.
+This is an implementation plan, not a claim that all components are production-ready.
 
 ## 1. Target architecture
 
 ```text
-Android UI / app controls (later)
+Android UI / explicit VPN consent
           |
-ConnectionCoordinator (Kotlin)
+AutoConnectCoordinator (profile discovery/provisioning)
+          |
+ConnectionCoordinator (serialized lifecycle)
           |
 EngineBackend contract
   |         |          |          |
  Xray     Aether     sing-box   WireGuard
   |         |          |          |
  engine-specific adapter / native bridge
-          |
-Local proxy or native tunnel interface (engine-dependent)
           |
 Android VpnService + TUN + DNS/routes
           |
@@ -30,9 +30,9 @@ Not every engine exposes the same interface. Some can provide a TUN implementati
 
 ## Current implementation snapshot (2026-10-26)
 
-The feature branch now contains the Kotlin engine contract and coordinator, encrypted local profile storage, a provider-backed server-directory interface, an HTTPS directory client with bounded response parsing, a TCP reachability probe, a deterministic endpoint selector, and an auto-connect orchestration boundary. The Android debug build and unit tests passed on the initial foundation commit; later changes must be validated by the latest CI run.
+The feature branch contains the Kotlin engine contract and coordinator, encrypted local profile storage, a provider-backed server-directory interface, an HTTPS directory client with bounded response parsing, a TCP reachability probe, a deterministic endpoint selector, and an auto-connect orchestration boundary. A WireGuard adapter now uses the official `com.wireguard.android:tunnel` library at a pinned version and parses bounded wg-quick profiles.
 
-These components do **not** constitute a working VPN yet: the engine registry has no production backend, no provider profile endpoint is configured, and the Android service does not establish a TUN until a real packet-forwarding implementation is integrated. Keep the feature branch unmerged until the owner approves.
+**Still not production-complete:** the UI does not yet drive the permission/connection flow; no authorized server-directory URL or profile provider is configured; no real device/emulator traffic and DNS test has verified the complete packet path; Xray, Aether, and sing-box have no registered production adapters. Do not report a successful tunnel until these gates pass. Keep the feature branch unmerged until the owner approves.
 
 ## 2. Integration order
 
@@ -40,7 +40,7 @@ These components do **not** constitute a working VPN yet: the engine registry ha
 - Establish Android Gradle project structure and supported SDK/ABIs.
 - Add CI checks for formatting, unit tests, dependency/license inventory, and native-artifact presence.
 - Pin each upstream dependency to a reviewed release or immutable commit.
-- Document the required licenses, notices, modifications, and build provenance.
+- Document required licenses, notices, modifications, and build provenance.
 - Keep secrets out of source control and release artifacts.
 
 ### Phase B — common backend contract
@@ -53,65 +53,54 @@ Define a small engine abstraction with:
 
 The coordinator must serialize start/stop transitions and guarantee cleanup after partial startup failures. Do not let engine-specific details leak into the Android service.
 
-### Phase C — end-to-end Android tunnel
-- Implement Android `VpnService` consent and foreground-service lifecycle.
-- Establish TUN addresses, routes, DNS, MTU, and IPv4/IPv6 behavior from explicit capabilities.
-- Choose exactly one tested packet path for the first engine: native TUN or local-proxy + maintained TUN bridge.
-- Prevent recursive routing of the engine's own sockets where necessary.
-- Verify connect, disconnect, process crash, network change, airplane mode, sleep/resume, and permission revocation.
-- Test actual traffic and DNS; status text alone is not proof of a working tunnel.
-- Do not advertise a kill switch unless the implementation and Android system settings support the stated guarantee.
+### Phase C — first engine and Android tunnel
+- [x] Add the official WireGuard Android tunnel library and a backend adapter.
+- [x] Parse WireGuard profiles with a size limit and safe failure messages.
+- [ ] Wire the adapter into an explicit Android VPN-consent flow and app connection controls.
+- [ ] Establish and verify TUN addresses, routes, DNS, MTU, and IPv4/IPv6 behavior from the profile.
+- [ ] Verify recursive routing protection for engine sockets.
+- [ ] Test connect, disconnect, process crash, network change, airplane mode, sleep/resume, and permission revocation.
+- [ ] Test actual traffic and DNS; status text alone is not proof of a working tunnel.
+- [ ] Do not advertise a kill switch unless implementation and Android system settings support the stated guarantee.
 
-### Phase D — first engine
-Prioritize the already planned Xray adapter if it exists in the actual source tree. Validate its current implementation before reusing it. If it does not exist in this repository, port or implement it as a separate reviewed change.
-
-Required tests:
-- valid/invalid configuration cases;
-- safe temporary-file permissions and cleanup;
-- process start/exit and timeouts;
-- no credentials in logs or crash messages;
-- local health check and real HTTP request through the tunnel;
-- stop/restart and no orphaned processes.
-
-### Phase E — additional engines
-Integrate engines independently, only after the first complete path works:
-1. **Aether** — evaluate its engine and its existing Android integration as a whole. Its upstream repository describes a TUN-to-local-SOCKS bridge, Xray custom-config support, WARP-based modes, Tor/Psiphon chaining, routing, and other optional features. These depend on upstream components and licenses; do not assume that simply adding its engine library reproduces the app.
-2. **sing-box** — use its supported Android/native integration path and capability-check TUN, DNS, routing, and supported protocol behavior. Do not run it concurrently with another engine over the same TUN unless the design explicitly supports chaining.
-3. **WireGuard** — treat as a separate WireGuard backend requiring valid peer configuration and keys. It is not a general replacement for Xray/sing-box and does not provide arbitrary VLESS/VMess protocols.
-
-Each backend needs a pinned version, license review, ABI matrix, native packaging validation, integration tests, and a clear capability matrix.
-
-### Phase F — no-manual-config connection
+### Phase D — no-manual-config connection
 A true one-tap experience requires a legitimate source of profiles/endpoints:
 - an RØH-operated service API with authentication, abuse controls, privacy policy, and monitored infrastructure; or
 - a documented provider-authorized API/integration; or
 - user-imported profile/subscription as a fallback.
 
-The current code defines the discovery, HTTPS parsing, reachability, ranking, profile-provisioning, and connection-orchestration boundaries. A real trusted service URL and a server-side profile provider still need to be operated and configured before the client can connect without manual configuration. The client must not fabricate server availability or silently collect credentials.
+The current code defines discovery, HTTPS parsing, reachability, ranking, profile-provisioning, and connection-orchestration boundaries. A real trusted service URL and a server-side profile provider still need to be operated and configured before the client can connect without manual configuration. The client must not fabricate server availability or silently collect credentials.
 
 **Proton VPN note:** Proton's free service is a provider service, not a public pool of generic server credentials. Do not hard-code, scrape, or redistribute Proton endpoints/credentials. Only integrate through a provider-supported, authorized mechanism; otherwise keep Proton as a reference for user experience, not as an embedded free-server backend.
 
-## 3. Common backend contract (conceptual)
+### Phase E — additional engines
+Integrate engines independently, only after the first complete path works:
+1. **Xray-core** — add a pinned engine and decide on a maintained TUN-to-proxy route if the engine exposes only a local proxy in the chosen integration.
+2. **Aether** — evaluate its engine and Android integration as a whole. Its upstream repository describes a TUN-to-local-SOCKS bridge, Xray custom-config support, WARP-based modes, Tor/Psiphon chaining, routing, and other optional features. These depend on upstream components and licenses; simply adding an engine library does not reproduce the app.
+3. **sing-box** — use its supported Android/native integration path and capability-check TUN, DNS, routing, and supported protocol behavior. Do not run it concurrently with another engine over the same TUN unless the design explicitly supports chaining.
+4. **WireGuard** — adapter added; it remains a distinct protocol and does not replace arbitrary VLESS/VMess protocols.
 
-The implementation should represent:
+Each backend needs a pinned version, license review, ABI matrix, native packaging validation, integration tests, and a clear capability matrix.
+
+## 3. Common backend contract
+
+The implementation represents:
 - `EngineId`: xray, aether, sing-box, wireguard;
 - `EngineCapabilities`: connection mode (TUN/proxy), IPv4/IPv6, DNS support, routing features, config formats;
-- `EngineConfig`: typed, validated, secret-bearing data kept out of logs;
+- `EngineBackend`: validation, start, status, and stop boundary;
 - `EngineStatus`: stopped, starting, running, stopping, failed;
-- `EngineError`: stable code, safe user message, redacted diagnostic details.
+- `EngineFailure`: stable code, safe user message, retryability.
 
-Use a sealed Kotlin interface or equivalent. Do not create one universal configuration schema that pretends all engines accept the same fields.
+Do not create one universal configuration schema that pretends all engines accept the same fields.
 
 ## 4. Native and language boundaries
 
 - **Kotlin:** Android service lifecycle, permission flow, coordinator, state, persistence, integration tests.
 - **Java:** only where Android/upstream APIs require it; avoid duplicating Kotlin abstractions.
-- **Go:** Go-based cores or carefully scoped Go adapters when supported by upstream build tooling.
-- **C/C++:** only for upstream native tunnel components or low-level bridging that requires it.
-- **Rust:** required if an upstream engine (such as Aether's native engine) uses Rust; keep its build pinned and reproducible.
+- **Go/Rust/C/C++:** only for upstream engine/native tunnel components with pinned, reproducible builds.
 - **Python:** CI/release helper scripts, repository checks, and test fixtures; not a substitute for the Android VPN service.
 
-Avoid rewriting mature cryptographic/networking cores in another language. Reuse upstream code only under its license and security model.
+Avoid rewriting mature cryptographic/networking cores. Reuse upstream code only under its license and security model.
 
 ## 5. Security and privacy requirements
 
@@ -144,7 +133,7 @@ A backend is not “integrated” until:
 - it builds from pinned source or a verified artifact;
 - its license and notices are included;
 - config validation and lifecycle tests pass;
-- Android VPN consent and TUN/proxy packet path are connected;
+- Android VPN consent and TUN packet path are connected;
 - real traffic and DNS tests pass on a supported device/emulator;
 - disconnect leaves no process, descriptor, or route behind;
 - failure is visible and does not silently fall back to unprotected traffic.
