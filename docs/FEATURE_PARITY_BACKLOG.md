@@ -51,7 +51,7 @@ This checklist is a product-engineering plan based on publicly described user-fa
 ## Quality gates
 
 - [x] Android debug build and JVM test workflow.
-- [ ] Latest CI green after the latest commit.
+- [ ] Latest CI green after the latest commit (re-run after cancellation/backoff changes).
 - [ ] Unit tests for every backend and provisioning error path.
 - [ ] Android instrumentation tests for permission/service lifecycle.
 - [ ] Device/emulator integration test with real HTTPS traffic through the tunnel.
