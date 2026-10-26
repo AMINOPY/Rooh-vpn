@@ -1,5 +1,6 @@
 package com.aminopy.roohvpn.server
 
+import java.net.IDN
 import java.net.Inet6Address
 import java.net.InetAddress
 
@@ -17,36 +18,32 @@ data class ServerCandidate(
     val priority: Int = 0
 ) {
     init {
-        require(id.matches(Regex("[A-Za-z0-9._-]{1,128}"))) { "Server ID must be a URL-safe opaque identifier" }
-        require(isValidHost(host)) { "Server host is malformed" }
+        require(id.isNotBlank() && id.length <= 128 && id.none(Char::isISOControl))
+        require(isValidHost(host))
         require(port in 1..65535)
-        require(region.isNotBlank() && region.length <= 80)
-        require(engineId.isNotBlank() && engineId.length <= 40)
+        require(region.isNotBlank() && region.length <= 80 && region.none(Char::isISOControl))
+        require(engineId.matches(Regex("[A-Za-z0-9_-]{1,40}")))
+        require(priority in -100_000..100_000)
     }
 
     private companion object {
-        /**
-         * Accept DNS names, IPv4 literals, and unbracketed IPv6 literals.
-         * Reject URL syntax, control/whitespace characters, scoped IPv6
-         * addresses, and malformed DNS labels before they reach Socket APIs.
-         */
         fun isValidHost(value: String): Boolean {
-            if (value.isBlank() || value.length > 253) return false
-            if (value.any { it <= ' ' || it == '\\' || it == '/' || it == '@' ||
-                        it == '?' || it == '#' || it == '%' }) return false
+            if (value.isBlank() || value != value.trim() || value.length > 253) return false
+            if (value.any { it.isWhitespace() || it.isISOControl() || it in "/\\\\@?#%" }) return false
 
+            // IPv6 literals are accepted only as unbracketed numeric literals;
+            // zone identifiers are intentionally rejected.
             if (':' in value) {
-                return runCatching {
-                    InetAddress.getByName(value) is Inet6Address
-                }.getOrDefault(false)
+                if (!value.matches(Regex("[0-9A-Fa-f:]+")) || value.count { it == ':' } < 2) return false
+                return runCatching { InetAddress.getByName(value) is Inet6Address }.getOrDefault(false)
             }
 
-            val dnsName = value.removeSuffix(".")
-            if (dnsName.isEmpty()) return false
-            return dnsName.split('.').all { label ->
+            val ascii = runCatching { IDN.toASCII(value, IDN.USE_STD3_ASCII_RULES) }
+                .getOrNull() ?: return false
+            if (ascii.length > 253 || ascii.startsWith('.') || ascii.endsWith('.')) return false
+            return ascii.split('.').all { label ->
                 label.isNotEmpty() && label.length <= 63 &&
-                    label.first().isLetterOrDigit() &&
-                    label.last().isLetterOrDigit() &&
+                    label.first() != '-' && label.last() != '-' &&
                     label.all { it.isLetterOrDigit() || it == '-' }
             }
         }
