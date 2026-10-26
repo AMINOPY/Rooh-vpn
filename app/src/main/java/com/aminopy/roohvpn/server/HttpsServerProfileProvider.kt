@@ -81,20 +81,30 @@ class HttpsServerProfileProvider(
             val bytes = connection.inputStream.use { input ->
                 val output = ByteArrayOutputStream()
                 val buffer = ByteArray(4096)
-                var total = 0
-                while (true) {
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    total += count
-                    require(total <= MAX_RESPONSE_BYTES) { "Profile response is too large" }
-                    output.write(buffer, 0, count)
+                try {
+                    var total = 0
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        total += count
+                        require(total <= MAX_RESPONSE_BYTES) { "Profile response is too large" }
+                        output.write(buffer, 0, count)
+                    }
+                    output.toByteArray()
+                } finally {
+                    buffer.fill(0)
                 }
-                output.toByteArray()
             }
-            if (cancellation.isCancelled()) throw InterruptedException("Profile request cancelled")
-            val body = String(bytes, StandardCharsets.UTF_8)
-            return parseProfileResponse(body, candidate, nowEpochSeconds())
-                ?: throw IllegalArgumentException("Profile response failed validation")
+            try {
+                if (cancellation.isCancelled()) throw InterruptedException("Profile request cancelled")
+                val body = String(bytes, StandardCharsets.UTF_8)
+                return parseProfileResponse(body, candidate, nowEpochSeconds())
+                    ?: throw IllegalArgumentException("Profile response failed validation")
+            } finally {
+                // This response may contain a private profile. Clear the raw UTF-8
+                // payload after parsing; the returned configuration has separate ownership.
+                bytes.fill(0)
+            }
         } finally {
             cancellationRegistration.close()
             connection.disconnect()
