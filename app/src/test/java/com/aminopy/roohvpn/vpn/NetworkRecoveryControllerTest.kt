@@ -5,7 +5,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -30,18 +29,18 @@ class NetworkRecoveryControllerTest {
     @Test
     fun healthyTunnelIsValidatedBeforeAnyReconnect() {
         val reconnects = AtomicInteger()
-        val checked = CountDownLatch(1)
+        val recovered = CountDownLatch(1)
         val controller = NetworkRecoveryController(
             tunnel = object : NetworkRecoveryController.TunnelRecoveryPort {
                 override fun isTunnelActive() = true
-                override fun validateTunnelTraffic(): Boolean { checked.countDown(); return true }
+                override fun validateTunnelTraffic() = true
                 override fun reconnect(): Boolean { reconnects.incrementAndGet(); return true }
             },
-            statusListener = {}
+            statusListener = { if (it == NetworkRecoveryController.Status.RECOVERED) recovered.countDown() }
         )
         try {
             controller.onNetworkStateChanged(NetworkLifecycleMonitor.State.AVAILABLE_VALIDATED)
-            assertTrue(checked.await(2, TimeUnit.SECONDS))
+            assertTrue(recovered.await(2, TimeUnit.SECONDS))
             assertEquals(0, reconnects.get())
             assertEquals(NetworkRecoveryController.Status.RECOVERED, controller.status())
         } finally {
@@ -84,7 +83,7 @@ class NetworkRecoveryControllerTest {
             statusListener = { if (it == NetworkRecoveryController.Status.RECOVERY_FAILED) finished.countDown() }
         )
         try {
-            controller.onNetworkStateChanged(NetworkLifecycleMonitor.State.AVAILABLE_UNVALIDATED)
+            controller.onNetworkStateChanged(NetworkLifecycleMonitor.State.AVAILABLE_VALIDATED)
             assertTrue(finished.await(2, TimeUnit.SECONDS))
             assertEquals(NetworkRecoveryController.Status.RECOVERY_FAILED, controller.status())
         } finally {
