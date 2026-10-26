@@ -6,6 +6,12 @@ package com.aminopy.roohvpn.core
  * establish a real, verified traffic path.
  */
 class EngineRegistry(backends: Collection<EngineBackend> = emptyList()) {
+    init {
+        require(backends.map(EngineBackend::id).distinct().size == backends.size) {
+            "Each engine ID may be registered only once"
+        }
+    }
+
     private val byId = backends.associateBy(EngineBackend::id)
 
     fun availableEngines(): Set<EngineId> = byId.keys
