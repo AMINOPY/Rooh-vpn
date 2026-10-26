@@ -20,6 +20,7 @@ This checklist is a product-engineering plan based on publicly described user-fa
 ## Engine and tunnel
 
 - [x] Common backend lifecycle contract and failure handling.
+- [x] Bounded streaming profile import with temporary buffer clearing and limit regression tests.
 - [x] Official WireGuard Android tunnel dependency and adapter.
 - [x] Wire the WireGuard adapter into user-consented import/connect/disconnect controls.
 - [ ] Verify complete TUN packet path, DNS, IPv4/IPv6 and MTU on device/emulator.
@@ -53,7 +54,7 @@ This checklist is a product-engineering plan based on publicly described user-fa
 ## Quality gates
 
 - [x] Android debug build and JVM test workflow.
-- [ ] Latest CI green after the latest commit (re-run after cancellation/backoff changes).
+- [ ] Latest CI green after the latest commit (re-run after bounded-import changes).
 - [ ] Unit tests for every backend and provisioning error path.
 - [ ] Android instrumentation tests for permission/service lifecycle.
 - [ ] Device/emulator integration test with real HTTPS traffic through the tunnel.
