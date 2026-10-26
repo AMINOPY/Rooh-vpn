@@ -31,3 +31,20 @@ A TCP probe alone only proves a socket accepted a connection; it does not prove 
 - Proton VPN's free service is not a generic public server pool. Do not scrape, hard-code, or redistribute Proton credentials/endpoints. Use only an explicitly supported integration.
 - Hiddify and Aether can inform client workflow and public architecture, but their server infrastructure, branding, and app code are not automatically reusable.
 - The app must disclose who operates the server, what connection metadata is collected, retention periods, and how users can disconnect or delete stored profiles.
+
+
+## Short-lived profile response
+
+The Android client now has an HTTPS profile-provider implementation. It requires a bearer token supplied at runtime by an authorization provider; never embed a long-lived token in the APK. The endpoint must return HTTP 200 without redirecting, use normal TLS hostname/certificate validation, and send a bounded JSON response such as:
+
+```json
+{
+  "version": 1,
+  "serverId": "server-eu-1",
+  "engine": "wireguard",
+  "expiresAtEpochSeconds": 1793030400,
+  "configuration": "<engine-specific profile text; placeholder only>"
+}
+```
+
+The client checks the response version, selected server ID, engine ID, expiry, and configuration size (64 KiB maximum); the profile must not be expired and may not be valid for more than 24 hours. The server must additionally authorize the account/device, rate-limit issuance, avoid logging profile contents or bearer tokens, and rotate/revoke issued credentials as appropriate. The timestamp above is illustrative only; deployers must return the actual expiry time. The client implementation does not mean a server API exists or is configured yet.
