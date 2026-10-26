@@ -16,8 +16,26 @@ fun interface ServerProfileProvider {
 /** Cooperative cancellation checked between blocking stages and candidate attempts. */
 class AutoConnectCancellation {
     private val cancelled = AtomicBoolean(false)
-    fun cancel() { cancelled.set(true) }
-    fun isCancelled(): Boolean = cancelled.get()
+
+    @Volatile
+    private var runner: Thread? = null
+
+    fun cancel() {
+        cancelled.set(true)
+        runner?.interrupt()
+    }
+
+    fun isCancelled(): Boolean =
+        cancelled.get() || (runner === Thread.currentThread() && Thread.currentThread().isInterrupted)
+
+    internal fun attachCurrentThread() {
+        runner = Thread.currentThread()
+        if (cancelled.get()) runner?.interrupt()
+    }
+
+    internal fun detachCurrentThread() {
+        if (runner === Thread.currentThread()) runner = null
+    }
 }
 
 /** Injectable delay keeps retry timing deterministic in tests. */
@@ -49,10 +67,20 @@ class AutoConnectCoordinator(
     private val retryDelay: RetryDelay = RetryDelay { Thread.sleep(it) }
 ) {
     fun connect(cancellation: AutoConnectCancellation = AutoConnectCancellation()): AutoConnectResult {
-        if (cancellation.isCancelled()) return cancelledResult()
+        cancellation.attachCurrentThread()
+        try {
+            return connectInternal(cancellation)
+        } finally {
+            cancellation.detachCurrentThread()
+        }
+    }
+
+    private fun connectInternal(cancellation: AutoConnectCancellation): AutoConnectResult {
+        if (cancellation.isCancelled()) return cancelledResult() 
         val candidates = try {
             directory.discover()
         } catch (_: Exception) {
+            if (cancellation.isCancelled()) return cancelledResult()
             return AutoConnectResult(
                 null,
                 EngineFailure("SERVER_DISCOVERY_FAILED", "Could not discover VPN servers.", true)
@@ -88,6 +116,7 @@ class AutoConnectCoordinator(
         val rankedCandidates = try {
             selector.rank(supportedCandidates).take(MAX_CONNECTION_ATTEMPTS)
         } catch (_: Exception) {
+            if (cancellation.isCancelled()) return cancelledResult()
             emptyList()
         }
         if (cancellation.isCancelled()) return cancelledResult()
@@ -127,6 +156,7 @@ class AutoConnectCoordinator(
             val configuration = try {
                 profiles.fetchConfiguration(ranked.candidate)
             } catch (_: Exception) {
+                if (cancellation.isCancelled()) return AutoConnectResult(ranked.candidate, cancelledFailure())
                 lastFailure = EngineFailure(
                     "PROFILE_PROVISION_FAILED",
                     "Could not obtain a secure connection profile.",
@@ -154,6 +184,7 @@ class AutoConnectCoordinator(
                 connections.connect(engineId, configuration)
             } catch (_: Exception) {
                 configuration.fill(0)
+                if (cancellation.isCancelled()) return AutoConnectResult(ranked.candidate, cancelledFailure())
                 EngineFailure(
                     "CONNECTION_COORDINATOR_FAILED",
                     "The VPN connection could not be started.",
