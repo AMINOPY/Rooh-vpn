@@ -12,15 +12,15 @@ RØH VPN is an Android VPN client project focused first on a reliable, testable 
 
 ## Implemented in the current feature branch
 
-- Android application module and VPN service lifecycle shell.
+- Android application module and core lifecycle foundation.
 - Common engine contract, capability models, registry, and serialized connection coordinator.
-- Unit tests for coordinator lifecycle and deterministic server selection.
-- Android Keystore-backed encrypted local profile storage.
-- Provider-backed server-directory interface and bounded TCP reachability probe.
-- CI workflow that builds a debug APK and runs JVM unit tests.
-- Core integration, server-discovery, third-party licensing, and Aether security review documents.
+- WireGuard adapter using the official Android tunnel library (pinned dependency), including bounded profile parsing and safe error mapping.
+- Encrypted local profile storage backed by Android Keystore AES-GCM.
+- Provider-backed server-directory interface, HTTPS client with bounded response parsing, TCP reachability probe, deterministic selector, and auto-connect orchestration boundary.
+- JVM unit tests and CI workflow that builds a debug APK and runs tests.
+- Core integration, server-discovery, third-party licensing, engine capability, and Aether security review documents.
 
-**Important:** these are foundation components. No engine is registered as operational yet; the service deliberately does not establish a TUN without a real packet-forwarding backend. A successful Android build is not proof that a VPN tunnel works.
+**Important:** WireGuard adapter integration is not the same as a verified production VPN. The app still needs an authorized profile source, a user-consent connection flow, full lifecycle wiring, and device/emulator tests proving real traffic and DNS traverse the tunnel. Xray, Aether, and sing-box are not integrated backends in this build. A successful Android build is not proof that a VPN tunnel works.
 
 ## Project documents
 
@@ -33,14 +33,14 @@ RØH VPN is an Android VPN client project focused first on a reliable, testable 
 
 ## Integration gates
 
-1. Integrate and test one complete engine-to-TUN traffic path.
-2. Verify DNS, IPv4/IPv6, lifecycle, network changes, and no orphaned processes.
-3. Add remaining engines independently behind the same adapter contract.
-4. Implement an authorized server API and automatic endpoint selection.
+1. Wire the WireGuard adapter into the user-consented app connection flow.
+2. Configure an authorized server API and secure profile provisioning.
+3. Verify DNS, IPv4/IPv6, lifecycle, network changes, and no orphaned processes on real Android devices.
+4. Integrate remaining engines independently behind the same adapter contract.
 5. Keep release signing keys private and include all required upstream notices.
 
 Proton VPN's free service is not a generic public server pool. RØH VPN will not scrape, hard-code, or redistribute Proton endpoints or credentials; an integration requires an explicitly supported and authorized mechanism.
 
 ## Current status
 
-**Foundation stage — not a release-ready VPN.** The debug build and unit-test workflow passed on the initial foundation commit. Later changes are being validated by CI. There is no claim of a working end-to-end tunnel, integrated multi-engine support, or Proton server access yet.
+**Development stage — not a release-ready VPN.** CI passed for the preceding foundation commit. The new WireGuard dependency and adapter must pass the latest CI run before this change is considered build-verified. There is no claim of a working end-to-end tunnel, integrated multi-engine support, or Proton server access.
