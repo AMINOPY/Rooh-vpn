@@ -66,6 +66,23 @@ class ServerSelectorTest {
     }
 
     @Test
+    fun skipsWireGuardUdpPeersWhenProbingMixedDirectoryAndFallsBackIfNeeded() {
+        var probedIds = mutableListOf<String>()
+        val wireGuard = ServerCandidate("wg", "wg.example", 51820, "EU", "wireguard", priority = 5)
+        val xray = ServerCandidate("xray", "xray.example", 443, "EU", "xray", priority = 1)
+        val selector = ServerSelector(EndpointProbe { candidate ->
+            probedIds += candidate.id
+            null
+        })
+
+        val selected = selector.select(listOf(wireGuard, xray))
+
+        assertEquals(listOf("xray"), probedIds)
+        assertEquals("wg", selected?.candidate?.id)
+        assertEquals(Long.MAX_VALUE, selected?.latencyMs)
+    }
+
+    @Test
     fun returnsNullWhenAllCandidatesFail() {
         val selector = ServerSelector(EndpointProbe { null })
 
