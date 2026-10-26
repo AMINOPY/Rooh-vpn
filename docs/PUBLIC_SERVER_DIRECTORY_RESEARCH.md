@@ -14,6 +14,12 @@ The request is for **server directory metadata**, not a subscription/configurati
   - Its availability/latency metadata is not a guarantee that a server is reachable from a given device or that a VPN session will succeed.
   - Treat this as a research candidate only. Do not display these entries as RØH-operated servers, do not automatically connect to them, and do not store their credentials/configurations in the app. Integration would require an OpenVPN engine, protocol/license review, live endpoint validation, and a clear third-party operator/trust disclosure.
 
+## WireGuard-specific findings
+
+The search also surfaced projects such as [nullGuard](https://github.com/nullata/nullGuard), [wireadmin](https://github.com/wireadmin/wireadmin), and [claimward-vpn-server](https://github.com/claimward/claimward-vpn-server). These are **self-hosted server-management/control-plane software**, not public pools of free servers offered by their maintainers. They require an operator to deploy and administer a gateway; they do not provide RØH with a ready-to-use, publicly authorized WireGuard endpoint. They are not integrated as endpoints.
+
+No verified, compatible, community-operated free WireGuard server directory was identified in this search. That is not evidence that none exists; it means the current evidence is insufficient to add one safely.
+
 ## Excluded from this request
 
 Repositories that primarily publish subscription URLs, proxy share links, or complete client configurations are not server-directory sources for this feature and should not be mistaken for a server inventory.
