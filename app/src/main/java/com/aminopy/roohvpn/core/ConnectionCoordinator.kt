@@ -99,6 +99,8 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
         }
     }
 
+    fun isEngineAvailable(engineId: EngineId): Boolean = registry.backend(engineId) != null
+
     fun activeEngine(): EngineId? = synchronized(lock) {
         activeBackend?.id
     }
