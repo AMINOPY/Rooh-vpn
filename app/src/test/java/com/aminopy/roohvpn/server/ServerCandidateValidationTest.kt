@@ -36,6 +36,11 @@ class ServerCandidateValidationTest {
     }
 
     @Test(expected = IllegalArgumentException::class)
+    fun rejectsPathSeparatorsInServerId() {
+        ServerCandidate("region/server", "vpn.example.org", 443, "EU", "wireguard")
+    }
+
+    @Test(expected = IllegalArgumentException::class)
     fun rejectsOversizedIdentifiers() {
         ServerCandidate("x".repeat(129), "vpn.example.org", 443, "EU", "wireguard")
     }
