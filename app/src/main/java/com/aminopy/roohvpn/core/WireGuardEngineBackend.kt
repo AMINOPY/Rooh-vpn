@@ -35,7 +35,9 @@ class WireGuardEngineBackend(context: Context) : EngineBackend {
         supportsIpv4 = true,
         supportsIpv6 = true,
         supportsDnsRouting = true,
-        supportsPerAppRouting = true,
+        // RØH has not yet exposed and verified VpnService per-app allow/deny
+        // rules. Do not advertise a capability based only on platform support.
+        supportsPerAppRouting = false,
         supportedConfigFormats = setOf("wireguard", "wg-quick")
     )
 
