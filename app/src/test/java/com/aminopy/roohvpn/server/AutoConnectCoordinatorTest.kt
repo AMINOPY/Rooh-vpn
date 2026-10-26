@@ -10,7 +10,6 @@ import com.aminopy.roohvpn.core.EngineStatus
 import com.aminopy.roohvpn.core.TunnelMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -53,6 +52,44 @@ class AutoConnectCoordinatorTest {
         assertFalse(result.connected)
         assertEquals("NO_SERVERS", result.failure?.code)
         assertNull(result.selectedServer)
+        assertEquals(0, backend.startCalls)
+    }
+
+    @Test
+    fun oversizedDirectoryIsRejectedBeforeProbing() {
+        var probeCalls = 0
+        val candidates = (0..500).map { server.copy(id = "server-$it") }
+        val coordinator = AutoConnectCoordinator(
+            directory = ServerDirectory { candidates },
+            selector = ServerSelector(EndpointProbe {
+                probeCalls++
+                18L
+            }),
+            profiles = ServerProfileProvider { byteArrayOf(1) },
+            connections = ConnectionCoordinator(EngineRegistry(listOf(FakeBackend())))
+        )
+
+        val result = coordinator.connect()
+
+        assertEquals("SERVER_DIRECTORY_LIMIT_EXCEEDED", result.failure?.code)
+        assertEquals(0, probeCalls)
+    }
+
+    @Test
+    fun invalidProfileIsClearedAndNeverStartsEngine() {
+        val backend = FakeBackend()
+        val oversizedConfig = ByteArray(1024 * 1024 + 1) { 7 }
+        val coordinator = AutoConnectCoordinator(
+            directory = ServerDirectory { listOf(server) },
+            selector = ServerSelector(EndpointProbe { 18L }),
+            profiles = ServerProfileProvider { oversizedConfig },
+            connections = ConnectionCoordinator(EngineRegistry(listOf(backend)))
+        )
+
+        val result = coordinator.connect()
+
+        assertEquals("INVALID_PROFILE_SIZE", result.failure?.code)
+        assertTrue(oversizedConfig.all { it.toInt() == 0 })
         assertEquals(0, backend.startCalls)
     }
 
