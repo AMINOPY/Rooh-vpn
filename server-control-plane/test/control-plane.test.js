@@ -31,3 +31,43 @@ test("unknown routes fail closed", async () => {
   const response = await worker.fetch(new Request("https://unit.test/admin"), {});
   assert.equal(response.status, 404);
 });
+
+
+test("profile endpoint requires a valid bearer token", async () => {
+  const db = {
+    prepare() {
+      return {
+        bind() { return this; },
+        async first() { return { id: "eu-1", host: "vpn.example.org", port: 51820, region: "EU", engine: "wireguard", priority: 0, enabled: 1 }; },
+      };
+    },
+  };
+  const response = await worker.fetch(
+    new Request("https://unit.test/v1/servers/eu-1/profile"),
+    { DB: db, JWT_HS256_SECRET: "a".repeat(48) },
+  );
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).error, "unauthorized");
+  assert.equal(response.headers.get("cache-control"), "no-store");
+});
+
+test("server directory filters malformed rows and returns no-store metadata", async () => {
+  const db = {
+    prepare() {
+      return {
+        async all() {
+          return { results: [
+            { id: "eu-1", host: "vpn.example.org", port: 51820, region: "EU", engine: "wireguard", priority: 1 },
+            { id: "../bad", host: "evil.example", port: 443, region: "X", engine: "xray", priority: 1 },
+          ] };
+        },
+      };
+    },
+  };
+  const response = await worker.fetch(new Request("https://unit.test/v1/servers"), { DB: db });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  const body = await response.json();
+  assert.equal(body.version, 1);
+  assert.deepEqual(body.servers.map((server) => server.id), ["eu-1"]);
+});
