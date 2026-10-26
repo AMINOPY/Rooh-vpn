@@ -234,5 +234,7 @@ class AutoConnectCoordinator(
         const val MAX_CANDIDATES = 500
         const val MAX_CONFIGURATION_BYTES = 1024 * 1024
         const val MAX_CONNECTION_ATTEMPTS = 3
+        const val INITIAL_RETRY_DELAY_MS = 200L
+        const val MAX_RETRY_DELAY_MS = 1_000L
     }
 }
