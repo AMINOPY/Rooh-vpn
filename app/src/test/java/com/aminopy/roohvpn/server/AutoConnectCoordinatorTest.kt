@@ -94,6 +94,33 @@ class AutoConnectCoordinatorTest {
     }
 
     @Test
+    fun skipsFasterCandidatesWhoseEngineIsNotRegistered() {
+        val backend = FakeBackend()
+        val supported = server.copy(id = "supported-xray", engineId = "xray")
+        val unsupported = server.copy(id = "unsupported-wireguard", engineId = "wireguard")
+        var unsupportedProbeCalls = 0
+        val coordinator = AutoConnectCoordinator(
+            directory = ServerDirectory { listOf(unsupported, supported) },
+            selector = ServerSelector(EndpointProbe { candidate ->
+                if (candidate.id == unsupported.id) {
+                    unsupportedProbeCalls++
+                    1L
+                } else {
+                    25L
+                }
+            }),
+            profiles = ServerProfileProvider { byteArrayOf(1) },
+            connections = ConnectionCoordinator(EngineRegistry(listOf(backend)))
+        )
+
+        val result = coordinator.connect()
+
+        assertTrue(result.connected)
+        assertEquals(supported.id, result.selectedServer?.id)
+        assertEquals(0, unsupportedProbeCalls)
+    }
+
+    @Test
     fun unsupportedEngineIsRejectedBeforeProfileProvisioning() {
         var provisionCalls = 0
         val unknown = server.copy(engineId = "unknown-engine")
