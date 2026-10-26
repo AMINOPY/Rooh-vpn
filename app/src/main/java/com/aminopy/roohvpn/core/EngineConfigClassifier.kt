@@ -35,10 +35,12 @@ object EngineConfigClassifier {
             return ProfileClassification(ImportedProfileFormat.WIREGUARD, EngineId.WIREGUARD, false)
         }
 
+        // Share-link schemes overlap across engines and transport implementations.
+        // Detect the format only; do not silently route every URI to Xray.
         if (listOf("vless://", "vmess://", "trojan://", "ss://", "hysteria2://", "hy2://", "tuic://")
                 .any { value.startsWith(it, ignoreCase = true) }
         ) {
-            return ProfileClassification(ImportedProfileFormat.SHARE_LINK, EngineId.XRAY, true)
+            return ProfileClassification(ImportedProfileFormat.SHARE_LINK, null, true)
         }
 
         if (!value.startsWith("{")) return unknown()
