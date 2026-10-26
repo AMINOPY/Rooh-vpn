@@ -23,7 +23,7 @@ This gate keeps the three remaining workstreams coordinated. They can be develop
 - Emulator tests plus physical-device tests on the supported Android versions.
 
 ### Current gate
-**NOT PASSED.** `RoohVpnService` is still a lifecycle shell and intentionally does not establish a TUN. The WireGuard library adapter exists, but this repository has not recorded the end-to-end device traffic/leak evidence above. Do not mark the full RØH VPN traffic path complete.
+**NOT PASSED.** `NetworkLifecycleMonitor` now observes default-network availability/validation and safely supports idempotent registration/close, but it is not yet connected to an engine recovery policy. `RoohVpnService` is still a lifecycle shell and intentionally does not establish a TUN. The WireGuard library adapter exists, but this repository has not recorded the end-to-end device traffic/leak evidence above. Do not mark the full RØH VPN traffic path complete.
 
 ## Track B — Aether, Xray, and sing-box engines
 
@@ -41,7 +41,7 @@ This gate keeps the three remaining workstreams coordinated. They can be develop
 - **sing-box:** the Android binding dependency is present, but RØH's backend, service/TUN ownership, config validation, and end-to-end traffic path are not complete.
 
 ### Current gate
-**NOT PASSED for all three.** Engine IDs/config classification are not evidence of operational support. Only fully integrated and tested backends may be registered.
+**NOT PASSED for all three.** Engine IDs/config classification are not evidence of operational support. No native Aether/Xray/sing-box adapter was added in this change; adding a placeholder would falsely advertise support. Only fully integrated and tested backends may be registered.
 
 ## Track C — operated RØH servers and secure profile provisioning
 
