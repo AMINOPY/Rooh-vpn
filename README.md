@@ -1,32 +1,44 @@
 # RØH VPN
 
-RØH VPN is an Android VPN client project focused first on a reliable, testable networking core. The initial milestone is **core integration and connection correctness**; visual redesign is explicitly out of scope until the networking foundation is sound.
+RØH VPN is an Android VPN client project focused first on a reliable, testable networking core. The initial milestone is **core integration and connection correctness**; visual redesign is explicitly deferred.
 
 ## Project direction
 
-- **Primary reference/initial engine:** Xray-core adapter already described in project history; verify and implement only what exists in this repository.
-- **Additional engine candidates:** Aether, sing-box, and WireGuard. They are separate backends, not interchangeable libraries. Each must have its own adapter, lifecycle, capability declaration, native packaging, and tests.
-- **Android tunnel:** Android `VpnService` owns the TUN interface and OS-level routing. An engine process alone does not route device traffic.
-- **Simple connection:** a backend can provide a one-tap experience only when there is a legitimate, reachable endpoint or service API. RØH VPN must not claim free Proton VPN access or bundle Proton servers without an authorized integration.
-- **Security:** no hard-coded server credentials, private keys, API tokens, or signing secrets. Protect local profiles, redact logs, validate imported configurations, and fail closed where leak protection is claimed.
-- **Languages:** Kotlin/Java for Android integration, Go for compatible engines/adapters where appropriate, Rust/C/C++ only where required by upstream native components, and Python for development/CI tooling—not as a privileged runtime dependency without a clear need.
+- **Engine candidates:** Xray-core, Aether, sing-box, and WireGuard. These are distinct backends, not interchangeable libraries. Each needs its own adapter, lifecycle, capability declaration, native packaging, license review, and tests.
+- **Android tunnel:** Android `VpnService` owns the TUN interface and OS-level routing. An engine process or local proxy alone does not route device traffic.
+- **Simple connection:** one-tap connection requires a legitimate server operator or provider-authorized API. This repo intentionally has no fabricated server addresses or embedded credentials.
+- **Security:** no hard-coded server credentials, private keys, API tokens, or signing secrets. Local saved profile data uses Android Keystore-backed AES-GCM encryption. Logs must redact sensitive values.
+- **Languages:** Kotlin/Java for Android integration; Go/Rust/C/C++ only where an upstream engine or native tunnel requires them; Python for development and CI tooling rather than the privileged runtime without a clear need.
 
-## Integration status
+## Implemented in the current feature branch
 
-This repository started with a minimal README. A feature branch is being used to establish the architecture and license/supply-chain plan before importing large upstream engines. Documentation is not evidence that an engine has already been integrated or that a working tunnel has been tested.
+- Android application module and VPN service lifecycle shell.
+- Common engine contract, capability models, registry, and serialized connection coordinator.
+- Unit tests for coordinator lifecycle and deterministic server selection.
+- Android Keystore-backed encrypted local profile storage.
+- Provider-backed server-directory interface and bounded TCP reachability probe.
+- CI workflow that builds a debug APK and runs JVM unit tests.
+- Core integration, server-discovery, third-party licensing, and Aether security review documents.
 
-See:
+**Important:** these are foundation components. No engine is registered as operational yet; the service deliberately does not establish a TUN without a real packet-forwarding backend. A successful Android build is not proof that a VPN tunnel works.
+
+## Project documents
+
 - [Core integration plan](docs/CORE_INTEGRATION_PLAN.md)
+- [Server discovery API contract](docs/SERVER_DISCOVERY_API.md)
 - [Third-party and licensing policy](docs/THIRD_PARTY_POLICY.md)
+- [Aether integration and signing-key risk review](docs/AETHER_INTEGRATION_REVIEW.md)
 
-## Engineering rules
+## Integration gates
 
-1. Keep each engine behind a common backend contract.
-2. Implement and verify one end-to-end tunnel before adding more engines.
-3. Do not merge vendored code or native binaries without pinned upstream revisions, license notices, checksums, and reproducible build steps.
-4. Report test results accurately; never mark an engine as connected until the service and traffic path are verified.
-5. Do not copy proprietary app features, branding, credentials, or server infrastructure. Learn from public architecture and use compatible open-source code according to its license.
+1. Integrate and test one complete engine-to-TUN traffic path.
+2. Verify DNS, IPv4/IPv6, lifecycle, network changes, and no orphaned processes.
+3. Add remaining engines independently behind the same adapter contract.
+4. Implement an authorized server API and automatic endpoint selection.
+5. Keep release signing keys private and include all required upstream notices.
 
-## Status
+Proton VPN's free service is not a generic public server pool. RØH VPN will not scrape, hard-code, or redistribute Proton endpoints or credentials; an integration requires an explicitly supported and authorized mechanism.
 
-**Planning/foundation stage — not a release-ready VPN.** No working APK, multi-engine support, Proton integration, or verified end-to-end traffic path is claimed by this document.
+## Current status
+
+**Foundation stage — not a release-ready VPN.** The debug build and unit-test workflow passed on the initial foundation commit. Later changes are being validated by CI. There is no claim of a working end-to-end tunnel, integrated multi-engine support, or Proton server access yet.
