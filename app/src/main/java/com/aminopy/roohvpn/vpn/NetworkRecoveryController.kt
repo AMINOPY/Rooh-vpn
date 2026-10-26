@@ -42,19 +42,23 @@ class NetworkRecoveryController(
     @Volatile private var lastStatus = Status.IDLE
 
     fun onNetworkStateChanged(state: NetworkLifecycleMonitor.State) {
-        if (closed.get() || !runCatching { tunnel.isTunnelActive() }.getOrDefault(false)) return
+        if (closed.get()) return
 
         if (state != NetworkLifecycleMonitor.State.AVAILABLE_VALIDATED) {
+            // A network callback must remain non-blocking. Do not call into the
+            // engine here; it may cross a JNI boundary or wait on native state.
             publish(Status.WAITING_FOR_NETWORK)
             return
         }
 
         // Coalesce Wi-Fi/mobile callbacks into one active validation/recovery task.
+        // All tunnel/backend calls, including isTunnelActive(), belong on the worker.
         if (!recoveryQueued.compareAndSet(false, true)) return
         try {
             worker.execute {
                 try {
-                    if (closed.get() || !tunnel.isTunnelActive()) return@execute
+                    if (closed.get()) return@execute
+                    if (!tunnel.isTunnelActive()) return@execute
                     publish(Status.CHECKING_TUNNEL)
                     if (tunnel.validateTunnelTraffic()) {
                         publish(Status.RECOVERED)
