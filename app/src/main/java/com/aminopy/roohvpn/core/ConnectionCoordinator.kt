@@ -66,9 +66,12 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
 
     fun disconnect(): EngineFailure? = synchronized(lock) {
         val backend = activeBackend ?: return@synchronized null
-        activeBackend = null
         try {
-            backend.stop()
+            val failure = backend.stop()
+            // Keep the backend marked active when stop is not confirmed. This
+            // blocks a second engine from starting over a possibly live tunnel.
+            if (failure == null) activeBackend = null
+            failure
         } catch (_: Exception) {
             EngineFailure(
                 code = "ENGINE_STOP_FAILED",
