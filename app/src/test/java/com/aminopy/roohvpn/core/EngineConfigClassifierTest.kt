@@ -34,7 +34,11 @@ class EngineConfigClassifierTest {
     @Test fun identifiesShareLinksWithoutTreatingThemAsValidatedProfiles() {
         val result = classify("vless://example")
         assertEquals(ImportedProfileFormat.SHARE_LINK, result.format)
+        assertEquals(null, result.engineId)
         assertTrue(result.requiresEngineIntegration)
+        val hysteria = classify("hysteria2://example")
+        assertEquals(ImportedProfileFormat.SHARE_LINK, hysteria.format)
+        assertEquals(null, hysteria.engineId)
     }
 
     @Test fun rejectsMalformedUnknownEmptyAndOversizedInputs() {
