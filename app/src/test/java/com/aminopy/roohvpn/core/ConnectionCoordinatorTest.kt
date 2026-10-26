@@ -7,6 +7,11 @@ import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 class ConnectionCoordinatorTest {
+    @Test(expected = IllegalArgumentException::class)
+    fun duplicateEngineRegistrationsAreRejected() {
+        EngineRegistry(listOf(FakeBackend(), FakeBackend()))
+    }
+
     @Test
     fun unavailableEngineFailsClosedAndClearsTemporaryConfig() {
         val coordinator = ConnectionCoordinator(EngineRegistry())
