@@ -21,12 +21,21 @@ class EncryptedProfileStore(context: Context) {
     private val preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
 
     fun save(profileId: String, profileJson: String) {
-        require(profileId.isNotBlank()) { "profileId must not be blank" }
-        require(profileJson.isNotBlank()) { "profile data must not be blank" }
+        require(profileId.isNotBlank() && profileId.length <= MAX_PROFILE_ID_LENGTH) {
+            "profileId must be between 1 and $MAX_PROFILE_ID_LENGTH characters"
+        }
+        require(profileJson.isNotBlank() && profileJson.length <= MAX_PROFILE_CHARS) {
+            "profile data is empty or exceeds the size limit"
+        }
 
+        val clear = profileJson.toByteArray(Charsets.UTF_8)
         val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
-        val ciphertext = cipher.doFinal(profileJson.toByteArray(Charsets.UTF_8))
+        val ciphertext = try {
+            cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
+            cipher.doFinal(clear)
+        } finally {
+            clear.fill(0)
+        }
         val prefix = keyPrefix(profileId)
         val currentIds = preferences.getStringSet(KEY_IDS, emptySet()).orEmpty().toMutableSet()
         currentIds += profileId
@@ -51,7 +60,11 @@ class EncryptedProfileStore(context: Context) {
                 GCMParameterSpec(TAG_BITS, Base64.decode(iv, Base64.NO_WRAP))
             )
             val clear = cipher.doFinal(Base64.decode(data, Base64.NO_WRAP))
-            StoredProfile(profileId, clear.toString(Charsets.UTF_8))
+            try {
+                StoredProfile(profileId, clear.toString(Charsets.UTF_8))
+            } finally {
+                clear.fill(0)
+            }
         } catch (_: Exception) {
             // Fail closed: remove corrupted data and never return unauthenticated text.
             delete(profileId)
@@ -113,5 +126,7 @@ class EncryptedProfileStore(context: Context) {
         const val TRANSFORMATION = "AES/GCM/NoPadding"
         const val TAG_BITS = 128
         const val KEY_IDS = "profile_ids"
+        const val MAX_PROFILE_ID_LENGTH = 128
+        const val MAX_PROFILE_CHARS = 2 * 1024 * 1024
     }
 }
