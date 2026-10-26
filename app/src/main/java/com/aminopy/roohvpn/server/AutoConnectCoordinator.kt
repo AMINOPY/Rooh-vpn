@@ -56,8 +56,19 @@ class AutoConnectCoordinator(
             )
         }
 
+        // Never let a faster but unregistered engine block a usable backend.
+        val supportedCandidates = candidates.filter { candidate ->
+            parseEngineId(candidate.engineId)?.let(connections::isEngineAvailable) == true
+        }
+        if (supportedCandidates.isEmpty()) {
+            return AutoConnectResult(
+                candidates.firstOrNull(),
+                EngineFailure("UNSUPPORTED_ENGINE", "No discovered server uses an engine available in this build.", false)
+            )
+        }
+
         val ranked = try {
-            selector.select(candidates)
+            selector.select(supportedCandidates)
         } catch (_: Exception) {
             null
         } ?: return AutoConnectResult(
