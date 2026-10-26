@@ -8,12 +8,12 @@ This is a design and verification matrix, not a claim that the listed engines ar
 | VLESS / VMess / Trojan / Shadowsocks | Depending on upstream protocol support | Via its bundled Xray path, if licensed and integrated | Depends on exact sing-box version/config | No |
 | WireGuard peer tunnel | Not a native replacement for WireGuard backend | Aether modes may use WireGuard internally; not equivalent to arbitrary peer profiles | Supported by relevant sing-box versions/config | Yes |
 | Android full-device VPN | Needs a TUN path or maintained bridge | Upstream app provides a TUN-to-proxy path | Android integration/TUN path required | Android backend provides a native tunnel path |
-| DNS routing | Engine and packet path dependent | Upstream mode-dependent | Engine and configuration dependent | DNS is normally assigned by profile/app integration |
-| Per-app routing | Android VPN builder / bridge and engine rules must align | Upstream app implements routing features | Depends on Android integration and config | Android app integration supports app inclusion/exclusion |
+| DNS routing | Engine and packet path dependent | Upstream mode-dependent | Engine and configuration dependent | Profile-driven DNS configuration; end-to-end behavior still needs device verification |
+| Per-app routing | Android VPN builder / bridge and engine rules must align | Upstream app implements routing features | Depends on Android integration and config | **Disabled in RØH capability metadata** until RØH exposes and tests allow/deny app rules |
 | Server auto-discovery | Requires a directory/service | Upstream app modes may use upstream services; RØH needs its own authorized integration | Requires a directory/service | Requires peer provisioning/service |
 | One-tap without manual profile | Requires authorized provisioning | Possible only when upstream service modes remain available and legally/technically appropriate | Requires authorized provisioning | Requires valid peer keys/config from an authorized source |
 | Native ABI packaging | Pin and build the chosen Go/native integration | Rust and tunnel native components; inspect upstream build | Pin and build Android-supported native integration | Use supported Android backend/native components |
-| RØH status | Not integrated | Reference review only | Not integrated | Adapter and consent-driven profile flow added; end-to-end traffic not verified |
+| RØH status | Not integrated | Reference review only | Dependency present, backend not integrated | Adapter and consent-driven profile flow added; end-to-end traffic not verified |
 
 ## Adapter contract requirements
 
