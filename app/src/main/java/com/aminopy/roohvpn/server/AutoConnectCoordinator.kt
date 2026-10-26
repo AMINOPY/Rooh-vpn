@@ -82,7 +82,7 @@ class AutoConnectCoordinator(
     private fun connectInternal(cancellation: AutoConnectCancellation): AutoConnectResult {
         if (cancellation.isCancelled()) return cancelledResult()
         val candidates = try {
-            directory.discover()
+            if (directory is CancellableServerDirectory) directory.discover(cancellation) else directory.discover()
         } catch (_: Exception) {
             if (cancellation.isCancelled()) return cancelledResult()
             return AutoConnectResult(
@@ -158,7 +158,11 @@ class AutoConnectCoordinator(
             val engineId = parseEngineId(ranked.candidate.engineId) ?: continue
 
             val configuration = try {
-                profiles.fetchConfiguration(ranked.candidate)
+                if (profiles is CancellableServerProfileProvider) {
+                    profiles.fetchConfiguration(ranked.candidate, cancellation)
+                } else {
+                    profiles.fetchConfiguration(ranked.candidate)
+                }
             } catch (_: Exception) {
                 if (cancellation.isCancelled()) return AutoConnectResult(ranked.candidate, cancelledFailure())
                 lastFailure = EngineFailure(
