@@ -18,7 +18,7 @@ data class ServerCandidate(
     val priority: Int = 0
 ) {
     init {
-        require(id.isNotBlank() && id.length <= 128 && id.none(Char::isISOControl))
+        require(id.matches(Regex("[A-Za-z0-9._-]{1,128}")) && !id.contains(".."))
         require(isValidHost(host))
         require(port in 1..65535)
         require(region.isNotBlank() && region.length <= 80 && region.none(Char::isISOControl))
