@@ -33,6 +33,16 @@ class ConnectionCoordinatorTest {
     }
 
     @Test
+    fun failedStopKeepsEngineMarkedActiveToPreventOverlappingTunnels() {
+        val backend = FakeBackend(stopFailure = EngineFailure("STOP_FAILED", "Stop failed.", true))
+        val coordinator = ConnectionCoordinator(EngineRegistry(listOf(backend)))
+
+        assertNull(coordinator.connect(EngineId.XRAY, byteArrayOf(1)))
+        assertEquals("STOP_FAILED", coordinator.disconnect()?.code)
+        assertEquals(EngineId.XRAY, coordinator.activeEngine())
+    }
+
+    @Test
     fun partialStartFailureTriggersCleanup() {
         val backend = FakeBackend(startFailure = EngineFailure("START_FAILED", "Could not start engine.", true))
         val coordinator = ConnectionCoordinator(EngineRegistry(listOf(backend)))
@@ -74,7 +84,8 @@ class ConnectionCoordinatorTest {
     private class FakeBackend(
         private val stateAfterStart: EngineState = EngineState.RUNNING,
         private val startFailure: EngineFailure? = null,
-        private val throwOnStart: Boolean = false
+        private val throwOnStart: Boolean = false,
+        private val stopFailure: EngineFailure? = null
     ) : EngineBackend {
         override val id = EngineId.XRAY
         override val capabilities = EngineCapabilities(
@@ -95,7 +106,7 @@ class ConnectionCoordinatorTest {
         override fun status() = EngineStatus(id, stateAfterStart)
         override fun stop(): EngineFailure? {
             stopCalls += 1
-            return null
+            return stopFailure
         }
     }
 }
