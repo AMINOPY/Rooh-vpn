@@ -85,18 +85,20 @@ class ServerSelector(private val probe: EndpointProbe) {
             .take(MAX_CANDIDATES)
 
         // WireGuard normally uses UDP. A TCP connect probe against its UDP
-        // endpoint will systematically fail, so use trusted provider priority
-        // as a candidate order and let the real WireGuard handshake decide.
-        // This is explicitly not a reachability/latency claim.
-        if (bounded.all { it.engineId.equals("wireguard", ignoreCase = true) }) {
-            return bounded.firstOrNull()?.let { RankedServer(it, Long.MAX_VALUE) }
+        // endpoint is invalid, including when the directory mixes engines.
+        // Prefer a reachable TCP-probed candidate; if none responds, fall back
+        // to the highest-priority WireGuard peer and let its real handshake decide.
+        val wireGuardCandidates = bounded.filter { it.engineId.equals("wireguard", ignoreCase = true) }
+        val tcpProbeCandidates = bounded.filterNot { it.engineId.equals("wireguard", ignoreCase = true) }
+        if (tcpProbeCandidates.isEmpty()) {
+            return wireGuardCandidates.firstOrNull()?.let { RankedServer(it, Long.MAX_VALUE) }
         }
 
         val executor = java.util.concurrent.Executors.newFixedThreadPool(MAX_PARALLEL_PROBES) { task ->
             Thread(task, "roohvpn-endpoint-probe").apply { isDaemon = true }
         }
         return try {
-            val tasks = bounded.map { candidate ->
+            val tasks = tcpProbeCandidates.map { candidate ->
                 java.util.concurrent.Callable {
                     val latency = runCatching { probe.measureLatency(candidate) }.getOrNull()
                     if (latency == null || latency < 0L) null else RankedServer(candidate, latency)
@@ -112,6 +114,7 @@ class ServerSelector(private val probe: EndpointProbe) {
                         .thenBy { it.candidate.id }
                 )
                 .firstOrNull()
+                ?: wireGuardCandidates.firstOrNull()?.let { RankedServer(it, Long.MAX_VALUE) }
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
             null
