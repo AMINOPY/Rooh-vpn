@@ -107,7 +107,7 @@ class AutoConnectCoordinator(
         for ((attemptIndex, ranked) in rankedCandidates.withIndex()) {
             if (cancellation.isCancelled()) return AutoConnectResult(lastCandidate, cancelledFailure())
             if (attemptIndex > 0) {
-                val delayMs = (INITIAL_RETRY_DELAY_MS shl (attemptIndex - 1)).coerceAtMost(MAX_RETRY_DELAY_MS)
+                val delayMs = (INITIAL_RETRY_DELAY_MS * (1L shl (attemptIndex - 1))).coerceAtMost(MAX_RETRY_DELAY_MS)
                 try {
                     retryDelay.pause(delayMs)
                 } catch (_: InterruptedException) {
