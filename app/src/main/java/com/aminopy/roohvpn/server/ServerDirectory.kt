@@ -84,6 +84,14 @@ class ServerSelector(private val probe: EndpointProbe) {
             .sortedWith(compareByDescending<ServerCandidate> { it.priority }.thenBy { it.id })
             .take(MAX_CANDIDATES)
 
+        // WireGuard normally uses UDP. A TCP connect probe against its UDP
+        // endpoint will systematically fail, so use trusted provider priority
+        // as a candidate order and let the real WireGuard handshake decide.
+        // This is explicitly not a reachability/latency claim.
+        if (bounded.all { it.engineId.equals("wireguard", ignoreCase = true) }) {
+            return bounded.firstOrNull()?.let { RankedServer(it, Long.MAX_VALUE) }
+        }
+
         val executor = java.util.concurrent.Executors.newFixedThreadPool(MAX_PARALLEL_PROBES) { task ->
             Thread(task, "roohvpn-endpoint-probe").apply { isDaemon = true }
         }
