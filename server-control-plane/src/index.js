@@ -54,7 +54,17 @@ async function verifyAccessToken(request, env) {
 
 async function listServers(env) {
   const result = await env.DB.prepare("SELECT id, host, port, region, engine, priority FROM servers WHERE enabled = 1 ORDER BY priority DESC, id ASC LIMIT 500").all();
-  return json({ version: 1, servers: (result.results || []).filter(isSafeServer) });
+  // Project an explicit public schema. Never serialize database rows directly:
+  // an accidental private-key/profile column must not leak through discovery.
+  const servers = (result.results || []).filter(isSafeServer).map(row => ({
+    id: row.id,
+    host: row.host,
+    port: row.port,
+    region: row.region,
+    engine: row.engine,
+    priority: row.priority,
+  }));
+  return json({ version: 1, servers });
 }
 
 async function issueProfile(request, env, serverId) {
