@@ -43,6 +43,12 @@ class AutoConnectCoordinator(
             )
         }
 
+        if (candidates.size > MAX_CANDIDATES) {
+            return AutoConnectResult(
+                null,
+                EngineFailure("SERVER_DIRECTORY_LIMIT_EXCEEDED", "The server list exceeded the safety limit.", true)
+            )
+        }
         if (candidates.isEmpty()) {
             return AutoConnectResult(
                 null,
@@ -50,11 +56,14 @@ class AutoConnectCoordinator(
             )
         }
 
-        val ranked = selector.select(candidates)
-            ?: return AutoConnectResult(
-                null,
-                EngineFailure("NO_REACHABLE_SERVERS", "No available VPN server responded.", true)
-            )
+        val ranked = try {
+            selector.select(candidates)
+        } catch (_: Exception) {
+            null
+        } ?: return AutoConnectResult(
+            null,
+            EngineFailure("NO_REACHABLE_SERVERS", "No available VPN server responded.", true)
+        )
 
         val engineId = parseEngineId(ranked.candidate.engineId)
             ?: return AutoConnectResult(
@@ -71,7 +80,22 @@ class AutoConnectCoordinator(
             )
         }
 
-        val failure = connections.connect(engineId, configuration)
+        if (configuration.isEmpty() || configuration.size > MAX_CONFIGURATION_BYTES) {
+            configuration.fill(0)
+            return AutoConnectResult(
+                ranked.candidate,
+                EngineFailure("INVALID_PROFILE_SIZE", "The secure connection profile was invalid.", false)
+            )
+        }
+
+        val failure = try {
+            connections.connect(engineId, configuration)
+        } catch (_: Exception) {
+            // ConnectionCoordinator also clears this buffer in its finally
+            // block; repeat defensively if a future implementation throws.
+            configuration.fill(0)
+            EngineFailure("CONNECTION_COORDINATOR_FAILED", "The VPN connection could not be started.", true)
+        }
         return AutoConnectResult(ranked.candidate, failure)
     }
 
@@ -81,5 +105,10 @@ class AutoConnectCoordinator(
         "sing-box", "sing_box", "singbox" -> EngineId.SING_BOX
         "wireguard" -> EngineId.WIREGUARD
         else -> null
+    }
+
+    private companion object {
+        const val MAX_CANDIDATES = 500
+        const val MAX_CONFIGURATION_BYTES = 1024 * 1024
     }
 }
