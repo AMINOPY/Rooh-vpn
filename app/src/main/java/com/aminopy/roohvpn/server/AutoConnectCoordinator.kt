@@ -13,16 +13,47 @@ fun interface ServerProfileProvider {
     fun fetchConfiguration(candidate: ServerCandidate): ByteArray
 }
 
+interface CancellableServerDirectory : ServerDirectory {
+    fun discover(cancellation: AutoConnectCancellation): List<ServerCandidate>
+    override fun discover(): List<ServerCandidate> = discover(AutoConnectCancellation())
+}
+
+interface CancellableServerProfileProvider : ServerProfileProvider {
+    fun fetchConfiguration(candidate: ServerCandidate, cancellation: AutoConnectCancellation): ByteArray
+    override fun fetchConfiguration(candidate: ServerCandidate): ByteArray =
+        fetchConfiguration(candidate, AutoConnectCancellation())
+}
+
 /** Cooperative cancellation checked between blocking stages and candidate attempts. */
 class AutoConnectCancellation {
     private val cancelled = AtomicBoolean(false)
+    private val callbackLock = Any()
+    private val cancellationCallbacks = mutableSetOf<() -> Unit>()
 
     @Volatile
     private var runner: Thread? = null
 
     fun cancel() {
-        cancelled.set(true)
+        val callbacks = synchronized(callbackLock) {
+            if (!cancelled.compareAndSet(false, true)) return
+            cancellationCallbacks.toList().also { cancellationCallbacks.clear() }
+        }
+        callbacks.forEach { callback -> runCatching(callback) }
         runner?.interrupt()
+    }
+
+    /** Register cleanup for blocking resources such as an in-flight HTTPS request. */
+    fun onCancel(action: () -> Unit): AutoCloseable {
+        val invokeNow = synchronized(callbackLock) {
+            if (cancelled.get()) true else {
+                cancellationCallbacks += action
+                false
+            }
+        }
+        if (invokeNow) runCatching(action)
+        return AutoCloseable {
+            synchronized(callbackLock) { cancellationCallbacks.remove(action) }
+        }
     }
 
     fun isCancelled(): Boolean =
@@ -161,7 +192,11 @@ class AutoConnectCoordinator(
                 if (profiles is CancellableServerProfileProvider) {
                     profiles.fetchConfiguration(ranked.candidate, cancellation)
                 } else {
+                    if (profiles is CancellableServerProfileProvider) {
+                    profiles.fetchConfiguration(ranked.candidate, cancellation)
+                } else {
                     profiles.fetchConfiguration(ranked.candidate)
+                }
                 }
             } catch (_: Exception) {
                 if (cancellation.isCancelled()) return AutoConnectResult(ranked.candidate, cancelledFailure())
