@@ -9,6 +9,8 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.aminopy.roohvpn.core.EngineFailure
+import com.aminopy.roohvpn.core.EngineConfigClassifier
+import com.aminopy.roohvpn.core.ImportedProfileFormat
 import com.aminopy.roohvpn.core.EngineId
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.ExecutorService
@@ -109,9 +111,25 @@ class MainActivity : Activity() {
                 output.toByteArray()
             } ?: throw IllegalArgumentException("Could not read profile")
             require(bytes.isNotEmpty()) { "Profile is empty" }
+            val classification = EngineConfigClassifier.classify(bytes)
+            if (classification.format != ImportedProfileFormat.WIREGUARD) {
+                bytes.fill(0)
+                pendingConfiguration?.fill(0)
+                pendingConfiguration = null
+                lastStatus = when (classification.format) {
+                    ImportedProfileFormat.XRAY_JSON ->
+                        "Detected Xray JSON, but the Xray engine is not integrated in this build yet."
+                    ImportedProfileFormat.SING_BOX_JSON ->
+                        "Detected sing-box JSON, but the sing-box engine is not integrated in this build yet."
+                    ImportedProfileFormat.SHARE_LINK ->
+                        "Detected a proxy share link. This build only imports WireGuard profiles; share-link conversion is not available yet."
+                    else -> "Unsupported or unrecognized profile. Select a valid WireGuard wg-quick configuration."
+                }
+                return
+            }
             pendingConfiguration?.fill(0)
             pendingConfiguration = bytes
-            lastStatus = "Profile loaded in memory only; this screen does not save the private key."
+            lastStatus = "WireGuard profile loaded in memory only; this screen does not save the private key."
         } catch (_: Exception) {
             lastStatus = "Profile could not be read or exceeds the 64 KiB limit."
         }
