@@ -91,6 +91,20 @@ class ConnectionCoordinatorTest {
     }
 
     @Test
+    fun nativeLinkageFailureIsRedactedAndTriggersCleanup() {
+        val backend = FakeBackend(throwLinkageErrorOnStart = true)
+        val coordinator = ConnectionCoordinator(EngineRegistry(listOf(backend)))
+        val config = byteArrayOf(9, 8, 7)
+
+        val failure = coordinator.connect(EngineId.XRAY, config)
+
+        assertEquals("ENGINE_NATIVE_UNAVAILABLE", failure?.code)
+        assertEquals(1, backend.stopCalls)
+        assertFalse(config.any { it.toInt() != 0 })
+        assertNull(coordinator.activeEngine())
+    }
+
+    @Test
     fun nonRunningStatusIsNotReportedAsSuccess() {
         val backend = FakeBackend(stateAfterStart = EngineState.STARTING)
         val coordinator = ConnectionCoordinator(EngineRegistry(listOf(backend)))
@@ -107,6 +121,7 @@ class ConnectionCoordinatorTest {
         private val stateAfterStart: EngineState = EngineState.RUNNING,
         private val startFailure: EngineFailure? = null,
         private val throwOnStart: Boolean = false,
+        private val throwLinkageErrorOnStart: Boolean = false,
         private val stopFailure: EngineFailure? = null
     ) : EngineBackend {
         override val id = EngineId.XRAY
@@ -123,6 +138,7 @@ class ConnectionCoordinatorTest {
         override fun validate(configuration: ByteArray): EngineFailure? = null
         override fun start(configuration: ByteArray): EngineFailure? {
             if (throwOnStart) error("simulated native adapter exception")
+            if (throwLinkageErrorOnStart) throw UnsatisfiedLinkError("native library missing")
             return startFailure
         }
         override fun status() = EngineStatus(id, stateAfterStart)
