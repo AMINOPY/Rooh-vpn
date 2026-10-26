@@ -26,7 +26,9 @@ This checklist is a product-engineering plan based on publicly described user-fa
 - [ ] Per-app inclusion/exclusion with Android VPN Builder and engine routing kept consistent.
 - [ ] Process-death recovery, VPN revoke handling, airplane mode and sleep/resume tests.
 - [ ] Kill-switch claims only after leak tests and documented Android system limitations.
-- [ ] Integrate Xray, Aether and sing-box independently after the first end-to-end engine is stable.
+- [x] Review the upstream Aether Mobile architecture, license, and native build boundary.
+- [ ] Integrate Aether's pinned Rust engine plus hev SOCKS-to-TUN bridge, JNI lifecycle, and ABI packaging; do not register Aether before these are built and tested.
+- [ ] Integrate Xray and sing-box independently after their native runtime and TUN boundaries are implemented.
 - [ ] Traffic counters measured from actual tunnel/network interfaces; no synthetic stats.
 
 ## Privacy and security
