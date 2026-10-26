@@ -90,6 +90,9 @@ class MainActivity : Activity() {
     }
 
     private fun loadSelectedProfile(data: Intent?) {
+        // A failed replacement import must never leave an older profile connectable.
+        pendingConfiguration?.fill(0)
+        pendingConfiguration = null
         val uri = data?.data
         if (uri == null) {
             lastStatus = "No profile was selected."
@@ -128,7 +131,6 @@ class MainActivity : Activity() {
                 renderState()
                 return
             }
-            pendingConfiguration?.fill(0)
             pendingConfiguration = bytes
             lastStatus = "WireGuard profile loaded in memory only; this screen does not save the private key."
         } catch (_: Exception) {
