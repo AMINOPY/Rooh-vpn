@@ -93,11 +93,11 @@ class HttpsServerProfileProvider(
         }
     }
 
-    private companion object {
-        const val MAX_TOKEN_CHARS = 4096
-        const val MAX_RESPONSE_BYTES = 96 * 1024
-        const val MAX_PROFILE_BYTES = 64 * 1024
-        const val MAX_PROFILE_TTL_SECONDS = 24 * 60 * 60L
+    companion object {
+        private const val MAX_TOKEN_CHARS = 4096
+        private const val MAX_RESPONSE_BYTES = 96 * 1024
+        private const val MAX_PROFILE_BYTES = 64 * 1024
+        private const val MAX_PROFILE_TTL_SECONDS = 24 * 60 * 60L
 
         internal fun parseProfileResponse(
             body: String,
@@ -111,7 +111,8 @@ class HttpsServerProfileProvider(
             require(normalizeEngine(root.optString("engine")) == normalizeEngine(candidate.engineId))
             val expiresAt = root.optLong("expiresAtEpochSeconds", -1L)
             require(expiresAt > nowEpochSeconds)
-            require(expiresAt - nowEpochSeconds <= MAX_PROFILE_TTL_SECONDS)
+            require(expiresAt <= nowEpochSeconds + MAX_PROFILE_TTL_SECONDS)
+            require(root.opt("configuration") is String)
             val configuration = root.getString("configuration").toByteArray(StandardCharsets.UTF_8)
             require(configuration.isNotEmpty() && configuration.size <= MAX_PROFILE_BYTES)
             configuration
@@ -119,7 +120,7 @@ class HttpsServerProfileProvider(
 
         private fun normalizeEngine(value: String): String =
             value.trim().lowercase().replace('_', '-').replace(" ", "")
-        
-        const val API_VERSION = 1
+
+        private const val API_VERSION = 1
     }
 }
