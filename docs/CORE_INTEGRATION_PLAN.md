@@ -56,7 +56,8 @@ The coordinator must serialize start/stop transitions and guarantee cleanup afte
 ### Phase C — first engine and Android tunnel
 - [x] Add the official WireGuard Android tunnel library and a backend adapter.
 - [x] Parse WireGuard profiles with a size limit and safe failure messages.
-- [ ] Wire the adapter into an explicit Android VPN-consent flow and app connection controls.
+- [x] Add explicit Android VPN consent and profile import/connect/disconnect controls.
+- [ ] Verify consent, start/stop, revocation and process-death behavior on supported devices/emulators.
 - [ ] Establish and verify TUN addresses, routes, DNS, MTU, and IPv4/IPv6 behavior from the profile.
 - [ ] Verify recursive routing protection for engine sockets.
 - [ ] Test connect, disconnect, process crash, network change, airplane mode, sleep/resume, and permission revocation.
@@ -69,7 +70,7 @@ A true one-tap experience requires a legitimate source of profiles/endpoints:
 - a documented provider-authorized API/integration; or
 - user-imported profile/subscription as a fallback.
 
-The current code defines discovery, HTTPS parsing, reachability, ranking, profile-provisioning, and connection-orchestration boundaries. A real trusted service URL and a server-side profile provider still need to be operated and configured before the client can connect without manual configuration. The client must not fabricate server availability or silently collect credentials.
+The client has a consent-driven manual WireGuard profile fallback. A Cloudflare Worker + D1 control-plane scaffold now defines directory/profile endpoints and delegates profile creation to a separately operated HTTPS provisioner. It is not deployed or configured: a real trusted service URL, account/device JWT issuer, VPN node, and provisioner still need to be operated before no-manual-config connection can work. The client must not fabricate server availability or silently collect credentials.
 
 **Proton VPN note:** Proton's free service is a provider service, not a public pool of generic server credentials. Do not hard-code, scrape, or redistribute Proton endpoints/credentials. Only integrate through a provider-supported, authorized mechanism; otherwise keep Proton as a reference for user experience, not as an embedded free-server backend.
 
