@@ -97,7 +97,7 @@ class HttpsServerProfileProvider(
         private const val MAX_TOKEN_CHARS = 4096
         private const val MAX_RESPONSE_BYTES = 96 * 1024
         private const val MAX_PROFILE_BYTES = 64 * 1024
-        private const val MAX_PROFILE_TTL_SECONDS = 24 * 60 * 60L
+        private const val MAX_PROFILE_TTL_SECONDS = 15 * 60L
 
         internal fun parseProfileResponse(
             body: String,
