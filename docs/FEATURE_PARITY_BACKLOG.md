@@ -13,14 +13,15 @@ This checklist is a product-engineering plan based on publicly described user-fa
 - [ ] Authenticated profile provisioning and short-lived credentials.
 - [ ] Real engine handshake + HTTP/DNS traffic test before reporting connected.
 - [x] Bounded fallback across up to three ranked server candidates when profile provisioning or engine start fails (without retrying over an unconfirmed active tunnel).
-- [ ] Exponential backoff, cancellation of in-flight discovery/provisioning, and automatic recovery after network changes.
+- [x] Bounded exponential retry delay between candidate attempts, cancellation checkpoints, and worker-thread interruption; provider I/O still requires finite connect/read timeouts.
+- [ ] Automatic recovery after network changes, including active-tunnel validation and reconnect tests on physical devices.
 - [ ] Favorite/last-known-good endpoint persistence and health history.
 
 ## Engine and tunnel
 
 - [x] Common backend lifecycle contract and failure handling.
 - [x] Official WireGuard Android tunnel dependency and adapter.
-- [ ] Wire the adapter into user-consented app connection controls.
+- [x] Wire the WireGuard adapter into user-consented import/connect/disconnect controls.
 - [ ] Verify complete TUN packet path, DNS, IPv4/IPv6 and MTU on device/emulator.
 - [ ] Per-app inclusion/exclusion with Android VPN Builder and engine routing kept consistent.
 - [ ] Process-death recovery, VPN revoke handling, airplane mode and sleep/resume tests.
