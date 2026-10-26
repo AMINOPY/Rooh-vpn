@@ -30,9 +30,9 @@ Not every engine exposes the same interface. Some can provide a TUN implementati
 
 ## Current implementation snapshot (2026-10-26)
 
-The feature branch contains the Kotlin engine contract and coordinator, encrypted local profile storage, a provider-backed server-directory interface, an HTTPS directory client with bounded response parsing, a TCP reachability probe, a deterministic endpoint selector, and an auto-connect orchestration boundary. A WireGuard adapter now uses the official `com.wireguard.android:tunnel` library at a pinned version and parses bounded wg-quick profiles.
+The feature branch contains the Kotlin engine contract and coordinator, encrypted local profile storage, an HTTPS directory and short-lived profile client, bounded server ranking, fallback across up to three candidates, exponential retry delays, and cooperative cancellation that interrupts the worker and disconnects in-flight HTTPS requests. The WireGuard adapter uses the official `com.wireguard.android:tunnel` library at a pinned version and parses bounded wg-quick profiles.
 
-**Current release blockers:** the Android UI now supports selecting a local file, classifying it, requesting Android VPN consent, and invoking the registered WireGuard backend for connect/disconnect. A failed/unsupported replacement import clears the prior in-memory profile. This does not prove full-device traffic routing: no real device/emulator test has verified traffic, DNS, IPv4/IPv6, revocation, or process-death behavior. No authorized server-directory URL, provider profile endpoint, or deployed control plane is configured. Xray, Aether, and sing-box have no registered production adapters; their dependencies/format detection are not runtime support. Do not report production-ready VPN service until these gates pass. Keep the feature branch unmerged until the owner approves.
+**Current release blockers:** the Android UI now supports selecting a local file, classifying it, requesting Android VPN consent, and invoking the registered WireGuard backend for connect/disconnect. A failed/unsupported replacement import clears the prior in-memory profile. This does not prove full-device traffic routing: no real device/emulator test has verified traffic, DNS, IPv4/IPv6, revocation, or process-death behavior. Automatic recovery after underlying-network changes remains unimplemented/unverified. No authorized server-directory URL, provider profile endpoint, VPN node, or deployed control plane is configured. Xray, Aether, and sing-box have no registered production adapters; their dependencies/format detection are not runtime support. Do not report production-ready VPN service until these gates pass. Keep the feature branch unmerged until the owner approves.
 
 ## 2. Integration order
 
@@ -49,7 +49,7 @@ Define a small engine abstraction with:
 - configuration validation before launch;
 - start, health/status, stop, and cleanup operations;
 - structured errors and bounded/redacted diagnostics;
-- cancellation, timeout, and process-death handling.
+- bounded retry/backoff and cooperative cancellation; provider clients can close in-flight HTTPS requests. Automatic network-change recovery and process-death handling still require implementation and device tests.
 
 The coordinator must serialize start/stop transitions and guarantee cleanup after partial startup failures. Do not let engine-specific details leak into the Android service.
 
