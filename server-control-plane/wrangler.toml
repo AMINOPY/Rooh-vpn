@@ -1,0 +1,16 @@
+name = "roohvpn-control-plane"
+main = "src/index.js"
+compatibility_date = "2026-10-26"
+
+[observability]
+enabled = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "roohvpn-directory"
+database_id = "REPLACE_WITH_CREATED_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+# Configure JWT_HS256_SECRET, PROVISIONER_TOKEN and PROVISIONER_URL
+# as Worker secrets/variables after deploying the authorized provisioner.
+# Never commit real credentials or server private keys.
