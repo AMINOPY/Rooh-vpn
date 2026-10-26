@@ -67,47 +67,69 @@ class AutoConnectCoordinator(
             )
         }
 
-        val ranked = try {
-            selector.select(supportedCandidates)
+        val rankedCandidates = try {
+            selector.rank(supportedCandidates).take(MAX_CONNECTION_ATTEMPTS)
         } catch (_: Exception) {
-            null
-        } ?: return AutoConnectResult(
-            null,
-            EngineFailure("NO_REACHABLE_SERVERS", "No available VPN server responded.", true)
+            emptyList()
+        }
+        if (rankedCandidates.isEmpty()) {
+            return AutoConnectResult(
+                null,
+                EngineFailure("NO_REACHABLE_SERVERS", "No available VPN server responded.", true)
+            )
+        }
+
+        var lastCandidate: ServerCandidate? = null
+        var lastFailure = EngineFailure(
+            "CONNECTION_ATTEMPTS_EXHAUSTED",
+            "No selected VPN server could establish a connection.",
+            true
         )
+        for (ranked in rankedCandidates) {
+            lastCandidate = ranked.candidate
+            val engineId = parseEngineId(ranked.candidate.engineId) ?: continue
 
-        val engineId = parseEngineId(ranked.candidate.engineId)
-            ?: return AutoConnectResult(
-                ranked.candidate,
-                EngineFailure("UNSUPPORTED_ENGINE", "The selected server uses an unsupported VPN engine.", false)
-            )
+            val configuration = try {
+                profiles.fetchConfiguration(ranked.candidate)
+            } catch (_: Exception) {
+                lastFailure = EngineFailure(
+                    "PROFILE_PROVISION_FAILED",
+                    "Could not obtain a secure connection profile.",
+                    true
+                )
+                continue
+            }
 
-        val configuration = try {
-            profiles.fetchConfiguration(ranked.candidate)
-        } catch (_: Exception) {
-            return AutoConnectResult(
-                ranked.candidate,
-                EngineFailure("PROFILE_PROVISION_FAILED", "Could not obtain a secure connection profile.", true)
-            )
+            if (configuration.isEmpty() || configuration.size > MAX_CONFIGURATION_BYTES) {
+                configuration.fill(0)
+                lastFailure = EngineFailure(
+                    "INVALID_PROFILE_SIZE",
+                    "The secure connection profile was invalid.",
+                    false
+                )
+                continue
+            }
+
+            val failure = try {
+                connections.connect(engineId, configuration)
+            } catch (_: Exception) {
+                configuration.fill(0)
+                EngineFailure(
+                    "CONNECTION_COORDINATOR_FAILED",
+                    "The VPN connection could not be started.",
+                    true
+                )
+            }
+            if (failure == null) return AutoConnectResult(ranked.candidate, null)
+
+            lastFailure = failure
+            // If cleanup could not be confirmed, do not attempt another engine
+            // over a possibly live tunnel. ConnectionCoordinator reserves it.
+            if (connections.activeEngine() != null) {
+                return AutoConnectResult(ranked.candidate, failure)
+            }
         }
-
-        if (configuration.isEmpty() || configuration.size > MAX_CONFIGURATION_BYTES) {
-            configuration.fill(0)
-            return AutoConnectResult(
-                ranked.candidate,
-                EngineFailure("INVALID_PROFILE_SIZE", "The secure connection profile was invalid.", false)
-            )
-        }
-
-        val failure = try {
-            connections.connect(engineId, configuration)
-        } catch (_: Exception) {
-            // ConnectionCoordinator also clears this buffer in its finally
-            // block; repeat defensively if a future implementation throws.
-            configuration.fill(0)
-            EngineFailure("CONNECTION_COORDINATOR_FAILED", "The VPN connection could not be started.", true)
-        }
-        return AutoConnectResult(ranked.candidate, failure)
+        return AutoConnectResult(lastCandidate, lastFailure)
     }
 
     private fun parseEngineId(value: String): EngineId? = when (value.lowercase()) {
@@ -121,5 +143,6 @@ class AutoConnectCoordinator(
     private companion object {
         const val MAX_CANDIDATES = 500
         const val MAX_CONFIGURATION_BYTES = 1024 * 1024
+        const val MAX_CONNECTION_ATTEMPTS = 3
     }
 }
