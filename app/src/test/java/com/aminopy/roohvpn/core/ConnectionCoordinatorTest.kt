@@ -55,6 +55,23 @@ class ConnectionCoordinatorTest {
     }
 
     @Test
+    fun failedStartCleanupFailureKeepsBackendReserved() {
+        val backend = FakeBackend(
+            startFailure = EngineFailure("START_FAILED", "Could not start engine.", true),
+            stopFailure = EngineFailure("STOP_FAILED", "Stop could not be confirmed.", true)
+        )
+        val coordinator = ConnectionCoordinator(EngineRegistry(listOf(backend)))
+
+        val firstFailure = coordinator.connect(EngineId.XRAY, byteArrayOf(4))
+        val secondFailure = coordinator.connect(EngineId.XRAY, byteArrayOf(5))
+
+        assertEquals("START_FAILED", firstFailure?.code)
+        assertEquals(EngineId.XRAY, coordinator.activeEngine())
+        assertEquals("ENGINE_ALREADY_ACTIVE", secondFailure?.code)
+        assertEquals(1, backend.stopCalls)
+    }
+
+    @Test
     fun adapterExceptionIsRedactedAndTriggersCleanup() {
         val backend = FakeBackend(throwOnStart = true)
         val coordinator = ConnectionCoordinator(EngineRegistry(listOf(backend)))
