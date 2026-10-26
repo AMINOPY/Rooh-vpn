@@ -125,6 +125,7 @@ class MainActivity : Activity() {
                         "Detected a proxy share link. This build only imports WireGuard profiles; share-link conversion is not available yet."
                     else -> "Unsupported or unrecognized profile. Select a valid WireGuard wg-quick configuration."
                 }
+                renderState()
                 return
             }
             pendingConfiguration?.fill(0)
