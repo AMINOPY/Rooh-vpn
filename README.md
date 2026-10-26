@@ -16,11 +16,13 @@ RØH VPN is an Android VPN client project focused first on a reliable, testable 
 - Common engine contract, capability models, registry, and serialized connection coordinator.
 - WireGuard adapter using the official Android tunnel library (pinned dependency), including bounded profile parsing and safe error mapping.
 - Encrypted local profile storage backed by Android Keystore AES-GCM.
-- Provider-backed server-directory interface, HTTPS client with bounded response parsing, TCP reachability probe, deterministic selector, and auto-connect orchestration boundary.
+- Provider-backed server-directory interface, hardened HTTPS discovery/profile clients, bounded concurrent reachability probes, deterministic selection, and auto-connect orchestration boundary.
+- Explicit Android VPN-consent flow and WireGuard profile import/connect/disconnect controls; imported configuration is bounded and held only in memory by the screen.
+- Cloudflare Worker + D1 control-plane scaffold with JWT-gated profile requests, HTTPS provisioner handoff, 15-minute maximum profile lifetime, empty-by-default server directory, and Node tests.
 - JVM unit tests and CI workflow that builds a debug APK and runs tests.
 - Core integration, server-discovery, third-party licensing, engine capability, and Aether security review documents.
 
-**Important:** WireGuard adapter integration is not the same as a verified production VPN. The app still needs an authorized profile source, a user-consent connection flow, full lifecycle wiring, and device/emulator tests proving real traffic and DNS traverse the tunnel. Xray, Aether, and sing-box are not integrated backends in this build. A successful Android build is not proof that a VPN tunnel works.
+**Important:** The app now has a consent-driven manual WireGuard profile flow, but it is not yet a verified production VPN. The control plane is a deployment scaffold only: no Cloudflare D1 ID, deployed Worker, real VPN node, provisioner, authentication issuer, or enabled server is configured. End-to-end traffic/DNS and device lifecycle tests remain required. Xray, Aether, and sing-box are not operational backends in this build. A successful build or a RUNNING engine status alone is not proof that device traffic traverses the tunnel.
 
 ## Project documents
 
@@ -33,7 +35,7 @@ RØH VPN is an Android VPN client project focused first on a reliable, testable 
 
 ## Integration gates
 
-1. Wire the WireGuard adapter into the user-consented app connection flow.
+1. Verify the new user-consented WireGuard profile import/connect/disconnect flow on a device/emulator.
 2. Configure an authorized server API and secure profile provisioning.
 3. Verify DNS, IPv4/IPv6, lifecycle, network changes, and no orphaned processes on real Android devices.
 4. Integrate remaining engines independently behind the same adapter contract.
