@@ -45,6 +45,20 @@ class ConnectionCoordinatorTest {
     }
 
     @Test
+    fun adapterExceptionIsRedactedAndTriggersCleanup() {
+        val backend = FakeBackend(throwOnStart = true)
+        val coordinator = ConnectionCoordinator(EngineRegistry(listOf(backend)))
+        val config = byteArrayOf(9, 8, 7)
+
+        val failure = coordinator.connect(EngineId.XRAY, config)
+
+        assertEquals("ENGINE_INTERNAL_ERROR", failure?.code)
+        assertEquals(1, backend.stopCalls)
+        assertFalse(config.any { it.toInt() != 0 })
+        assertNull(coordinator.activeEngine())
+    }
+
+    @Test
     fun nonRunningStatusIsNotReportedAsSuccess() {
         val backend = FakeBackend(stateAfterStart = EngineState.STARTING)
         val coordinator = ConnectionCoordinator(EngineRegistry(listOf(backend)))
@@ -59,7 +73,8 @@ class ConnectionCoordinatorTest {
 
     private class FakeBackend(
         private val stateAfterStart: EngineState = EngineState.RUNNING,
-        private val startFailure: EngineFailure? = null
+        private val startFailure: EngineFailure? = null,
+        private val throwOnStart: Boolean = false
     ) : EngineBackend {
         override val id = EngineId.XRAY
         override val capabilities = EngineCapabilities(
@@ -73,7 +88,10 @@ class ConnectionCoordinatorTest {
         var stopCalls = 0
 
         override fun validate(configuration: ByteArray): EngineFailure? = null
-        override fun start(configuration: ByteArray): EngineFailure? = startFailure
+        override fun start(configuration: ByteArray): EngineFailure? {
+            if (throwOnStart) error("simulated native adapter exception")
+            return startFailure
+        }
         override fun status() = EngineStatus(id, stateAfterStart)
         override fun stop(): EngineFailure? {
             stopCalls += 1
