@@ -192,11 +192,7 @@ class AutoConnectCoordinator(
                 if (profiles is CancellableServerProfileProvider) {
                     profiles.fetchConfiguration(ranked.candidate, cancellation)
                 } else {
-                    if (profiles is CancellableServerProfileProvider) {
-                    profiles.fetchConfiguration(ranked.candidate, cancellation)
-                } else {
                     profiles.fetchConfiguration(ranked.candidate)
-                }
                 }
             } catch (_: Exception) {
                 if (cancellation.isCancelled()) return AutoConnectResult(ranked.candidate, cancelledFailure())
@@ -256,6 +252,12 @@ class AutoConnectCoordinator(
         }
         return AutoConnectResult(lastCandidate, lastFailure)
     }
+
+    private fun cancelledResult(): AutoConnectResult =
+        AutoConnectResult(null, cancelledFailure())
+
+    private fun cancelledFailure(): EngineFailure =
+        EngineFailure("CONNECTION_CANCELLED", "The connection attempt was cancelled.", false)
 
     private fun parseEngineId(value: String): EngineId? = when (value.lowercase()) {
         "xray" -> EngineId.XRAY
