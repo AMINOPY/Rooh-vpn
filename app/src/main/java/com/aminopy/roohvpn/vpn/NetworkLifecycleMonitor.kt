@@ -29,6 +29,7 @@ class NetworkLifecycleMonitor(
     }
 
     private val closed = AtomicBoolean(false)
+    private val started = AtomicBoolean(false)
     @Volatile private var currentState = State.NO_DEFAULT_NETWORK
 
     private val callback = object : ConnectivityManager.NetworkCallback() {
@@ -51,24 +52,31 @@ class NetworkLifecycleMonitor(
 
     fun start() {
         check(!closed.get()) { "Monitor is already closed" }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            connectivityManager.registerDefaultNetworkCallback(callback)
-        } else {
-            @Suppress("DEPRECATION")
-            connectivityManager.registerNetworkCallback(
-                android.net.NetworkRequest.Builder()
-                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                    .build(),
-                callback
-            )
+        if (!started.compareAndSet(false, true)) return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                connectivityManager.registerDefaultNetworkCallback(callback)
+            } else {
+                @Suppress("DEPRECATION")
+                connectivityManager.registerNetworkCallback(
+                    android.net.NetworkRequest.Builder()
+                        .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                        .build(),
+                    callback
+                )
+            }
+            publish(readDefaultState())
+        } catch (failure: RuntimeException) {
+            started.set(false)
+            throw failure
         }
-        publish(readDefaultState())
     }
 
     fun state(): State = currentState
 
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
+        if (!started.compareAndSet(true, false)) return
         try {
             connectivityManager.unregisterNetworkCallback(callback)
         } catch (_: IllegalArgumentException) {
