@@ -1,5 +1,8 @@
 package com.aminopy.roohvpn.server
 
+import java.net.Inet6Address
+import java.net.InetAddress
+
 /**
  * A candidate contains connection metadata only. Credentials and private keys
  * belong in a separate secret-bearing configuration object and must never be
@@ -14,11 +17,39 @@ data class ServerCandidate(
     val priority: Int = 0
 ) {
     init {
-        require(id.isNotBlank())
-        require(host.isNotBlank())
+        require(id.isNotBlank() && id.length <= 128)
+        require(isValidHost(host)) { "Server host is malformed" }
         require(port in 1..65535)
-        require(region.isNotBlank())
-        require(engineId.isNotBlank())
+        require(region.isNotBlank() && region.length <= 80)
+        require(engineId.isNotBlank() && engineId.length <= 40)
+    }
+
+    private companion object {
+        /**
+         * Accept DNS names, IPv4 literals, and unbracketed IPv6 literals.
+         * Reject URL syntax, control/whitespace characters, scoped IPv6
+         * addresses, and malformed DNS labels before they reach Socket APIs.
+         */
+        fun isValidHost(value: String): Boolean {
+            if (value.isBlank() || value.length > 253) return false
+            if (value.any { it <= ' ' || it == '\\' || it == '/' || it == '@' ||
+                        it == '?' || it == '#' || it == '%' }) return false
+
+            if (':' in value) {
+                return runCatching {
+                    InetAddress.getByName(value) is Inet6Address
+                }.getOrDefault(false)
+            }
+
+            val dnsName = value.removeSuffix(".")
+            if (dnsName.isEmpty()) return false
+            return dnsName.split('.').all { label ->
+                label.isNotEmpty() && label.length <= 63 &&
+                    label.first().isLetterOrDigit() &&
+                    label.last().isLetterOrDigit() &&
+                    label.all { it.isLetterOrDigit() || it == '-' }
+            }
+        }
     }
 }
 
