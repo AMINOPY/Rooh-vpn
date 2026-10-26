@@ -1,6 +1,6 @@
 # RØH VPN capability backlog (Hiddify / Proton-inspired)
 
-This checklist is a product-engineering plan based on publicly described user-facing capabilities. It does not copy proprietary implementation, branding, server infrastructure, or credentials. UI work is intentionally deferred while the core is being built.
+This checklist is a product-engineering plan based on publicly described user-facing capabilities. It does not copy proprietary implementation, branding, server infrastructure, or credentials. UI redesign is intentionally deferred while the core is being built.
 
 ## Connection and server experience
 
@@ -18,14 +18,13 @@ This checklist is a product-engineering plan based on publicly described user-fa
 ## Engine and tunnel
 
 - [x] Common backend lifecycle contract and failure handling.
-- [ ] Pin and integrate the first engine from source.
-- [ ] Android VPN consent flow tied to a real backend.
-- [ ] Real TUN packet-forwarding path.
-- [ ] IPv4, IPv6, DNS and MTU verification.
+- [x] Official WireGuard Android tunnel dependency and adapter.
+- [ ] Wire the adapter into user-consented app connection controls.
+- [ ] Verify complete TUN packet path, DNS, IPv4/IPv6 and MTU on device/emulator.
 - [ ] Per-app inclusion/exclusion with Android VPN Builder and engine routing kept consistent.
 - [ ] Process-death recovery, VPN revoke handling, airplane mode and sleep/resume tests.
 - [ ] Kill-switch claims only after leak tests and documented Android system limitations.
-- [ ] Integrate additional engines one by one after first end-to-end engine is stable.
+- [ ] Integrate Xray, Aether and sing-box independently after the first end-to-end engine is stable.
 - [ ] Traffic counters measured from actual tunnel/network interfaces; no synthetic stats.
 
 ## Privacy and security
