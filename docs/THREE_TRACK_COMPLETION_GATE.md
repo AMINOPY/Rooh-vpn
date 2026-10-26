@@ -57,6 +57,9 @@ This gate keeps the three remaining workstreams coordinated. They can be develop
 - Provisioner timeout/error handling, directory outage, rate limits, secret rotation and no-secret-in-logs checks.
 - A real WireGuard handshake plus tunneled DNS and HTTP(S) request against the deployed node, then network-recovery tests from Track A.
 
+### Public community directory research
+A candidate directory mirror was reviewed in [PUBLIC_SERVER_DIRECTORY_RESEARCH.md](PUBLIC_SERVER_DIRECTORY_RESEARCH.md). The candidate lists VPN Gate/OpenVPN servers, which the current WireGuard-only client cannot use. WireGuard management projects found during the search are self-hosted control planes, not public free-server pools. No compatible, verified public WireGuard server source was established, so no third-party endpoints are silently enabled or labeled as RØH servers.
+
 ### Current gate
 **NOT PASSED.** The control-plane directory is a scaffold with disabled/empty server records. A real VPN node, provisioner, deployment environment and authorized credentials were not supplied to this repository session. Code changes alone cannot create or authorize that infrastructure.
 
