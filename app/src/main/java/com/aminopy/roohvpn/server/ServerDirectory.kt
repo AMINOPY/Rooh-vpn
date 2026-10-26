@@ -74,8 +74,9 @@ data class RankedServer(
  * preliminary filter, not proof that a VPN handshake or tunnel works.
  */
 class ServerSelector(private val probe: EndpointProbe) {
-    fun select(candidates: List<ServerCandidate>): RankedServer? {
-        if (candidates.isEmpty()) return null
+    /** Returns deterministic candidates in attempt order, with a bounded probe budget. */
+    fun rank(candidates: List<ServerCandidate>): List<RankedServer> {
+        if (candidates.isEmpty()) return emptyList()
 
         // Bound work even if a directory returns hundreds of valid endpoints.
         // Provider priority and stable IDs choose the probe window; latency
@@ -85,14 +86,13 @@ class ServerSelector(private val probe: EndpointProbe) {
             .take(MAX_CANDIDATES)
 
         // WireGuard normally uses UDP. A TCP connect probe against its UDP
-        // endpoint is invalid, including when the directory mixes engines.
-        // Prefer a reachable TCP-probed candidate; if none responds, fall back
-        // to the highest-priority WireGuard peer and let its real handshake decide.
-        val wireGuardCandidates = bounded.filter { it.engineId.equals("wireguard", ignoreCase = true) }
+        // endpoint is invalid. Keep WG peers as handshake-verified fallbacks,
+        // after TCP-probed engines, rather than pretending a TCP probe applies.
+        val wireGuardCandidates = bounded
+            .filter { it.engineId.equals("wireguard", ignoreCase = true) }
+            .map { RankedServer(it, Long.MAX_VALUE) }
         val tcpProbeCandidates = bounded.filterNot { it.engineId.equals("wireguard", ignoreCase = true) }
-        if (tcpProbeCandidates.isEmpty()) {
-            return wireGuardCandidates.firstOrNull()?.let { RankedServer(it, Long.MAX_VALUE) }
-        }
+        if (tcpProbeCandidates.isEmpty()) return wireGuardCandidates
 
         val executor = java.util.concurrent.Executors.newFixedThreadPool(MAX_PARALLEL_PROBES) { task ->
             Thread(task, "roohvpn-endpoint-probe").apply { isDaemon = true }
@@ -105,7 +105,7 @@ class ServerSelector(private val probe: EndpointProbe) {
                 }
             }
             val futures = executor.invokeAll(tasks, TOTAL_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
-            futures.asSequence()
+            val reachable = futures.asSequence()
                 .filterNot { it.isCancelled }
                 .mapNotNull { future -> runCatching { future.get() }.getOrNull() }
                 .sortedWith(
@@ -113,15 +113,20 @@ class ServerSelector(private val probe: EndpointProbe) {
                         .thenByDescending { it.candidate.priority }
                         .thenBy { it.candidate.id }
                 )
-                .firstOrNull()
-                ?: wireGuardCandidates.firstOrNull()?.let { RankedServer(it, Long.MAX_VALUE) }
+                .toList()
+            // A reachable socket is only a preliminary signal. If it fails a
+            // real profile/start attempt, AutoConnectCoordinator can try a WG
+            // peer without ever TCP-probing its UDP endpoint.
+            reachable + wireGuardCandidates
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
-            null
+            emptyList()
         } finally {
             executor.shutdownNow()
         }
     }
+
+    fun select(candidates: List<ServerCandidate>): RankedServer? = rank(candidates).firstOrNull()
 
     private companion object {
         const val MAX_CANDIDATES = 32
