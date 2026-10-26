@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.aminopy.roohvpn"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.aminopy.roohvpn"
