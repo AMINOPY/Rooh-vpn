@@ -28,6 +28,8 @@ RØH VPN is an Android VPN client project focused first on a reliable, testable 
 - [Server discovery API contract](docs/SERVER_DISCOVERY_API.md)
 - [Third-party and licensing policy](docs/THIRD_PARTY_POLICY.md)
 - [Aether integration and signing-key risk review](docs/AETHER_INTEGRATION_REVIEW.md)
+- [Engine capability matrix](docs/ENGINE_CAPABILITY_MATRIX.md)
+- [Hiddify/Proton-inspired capability backlog](docs/FEATURE_PARITY_BACKLOG.md)
 
 ## Integration gates
 
