@@ -76,9 +76,9 @@ The client has a consent-driven manual WireGuard profile fallback. A Cloudflare 
 
 ### Phase E — additional engines
 Integrate engines independently, only after the first complete path works:
-1. **Xray-core** — add a pinned engine and decide on a maintained TUN-to-proxy route if the engine exposes only a local proxy in the chosen integration.
-2. **Aether** — evaluate its engine and Android integration as a whole. Its upstream repository describes a TUN-to-local-SOCKS bridge, Xray custom-config support, WARP-based modes, Tor/Psiphon chaining, routing, and other optional features. These depend on upstream components and licenses; simply adding an engine library does not reproduce the app.
-3. **sing-box** — use its supported Android/native integration path and capability-check TUN, DNS, routing, and supported protocol behavior. Do not run it concurrently with another engine over the same TUN unless the design explicitly supports chaining.
+1. **Xray-core** — official `XTLS/libXray` uses gomobile and embeds a Go runtime. Its upstream warns not to load independently built Go runtimes in the same process. A production integration needs a reproducible pinned Android build, API wrapper, socket protection, DNS handling, a validated TUN-to-proxy bridge or supported FD path, and explicit process isolation if paired with another Go-based engine.
+2. **sing-box** — the Android `libbox` binding is declared as a dependency, but the backend is not implemented. It also needs its supported service/TUN lifecycle, config validation, protected sockets, DNS/routes, native ABI and license review. Do not register it until traffic tests pass.
+3. **Aether** — reference-only. Evaluate its engine and Android integration as a whole; its upstream app bundles multiple components with separate licenses. Simply adding its app code does not make it a clean engine adapter.
 4. **WireGuard** — adapter added; it remains a distinct protocol and does not replace arbitrary VLESS/VMess protocols.
 
 Each backend needs a pinned version, license review, ABI matrix, native packaging validation, integration tests, and a clear capability matrix.
