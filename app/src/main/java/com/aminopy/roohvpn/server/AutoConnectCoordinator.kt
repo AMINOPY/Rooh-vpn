@@ -3,6 +3,7 @@ package com.aminopy.roohvpn.server
 import com.aminopy.roohvpn.core.ConnectionCoordinator
 import com.aminopy.roohvpn.core.EngineFailure
 import com.aminopy.roohvpn.core.EngineId
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Fetches a short-lived, authorized engine profile after server selection.
@@ -10,6 +11,19 @@ import com.aminopy.roohvpn.core.EngineId
  */
 fun interface ServerProfileProvider {
     fun fetchConfiguration(candidate: ServerCandidate): ByteArray
+}
+
+/** Cooperative cancellation checked between blocking stages and candidate attempts. */
+class AutoConnectCancellation {
+    private val cancelled = AtomicBoolean(false)
+    fun cancel() { cancelled.set(true) }
+    fun isCancelled(): Boolean = cancelled.get()
+}
+
+/** Injectable delay keeps retry timing deterministic in tests. */
+fun interface RetryDelay {
+    @Throws(InterruptedException::class)
+    fun pause(milliseconds: Long)
 }
 
 data class AutoConnectResult(
@@ -31,9 +45,11 @@ class AutoConnectCoordinator(
     private val directory: ServerDirectory,
     private val selector: ServerSelector,
     private val profiles: ServerProfileProvider,
-    private val connections: ConnectionCoordinator
+    private val connections: ConnectionCoordinator,
+    private val retryDelay: RetryDelay = RetryDelay { Thread.sleep(it) }
 ) {
-    fun connect(): AutoConnectResult {
+    fun connect(cancellation: AutoConnectCancellation = AutoConnectCancellation()): AutoConnectResult {
+        if (cancellation.isCancelled()) return cancelledResult()
         val candidates = try {
             directory.discover()
         } catch (_: Exception) {
@@ -43,6 +59,7 @@ class AutoConnectCoordinator(
             )
         }
 
+        if (cancellation.isCancelled()) return cancelledResult()
         if (candidates.size > MAX_CANDIDATES) {
             return AutoConnectResult(
                 null,
@@ -60,6 +77,7 @@ class AutoConnectCoordinator(
         val supportedCandidates = candidates.filter { candidate ->
             parseEngineId(candidate.engineId)?.let(connections::isEngineAvailable) == true
         }
+        if (cancellation.isCancelled()) return cancelledResult()
         if (supportedCandidates.isEmpty()) {
             return AutoConnectResult(
                 candidates.firstOrNull(),
@@ -72,6 +90,7 @@ class AutoConnectCoordinator(
         } catch (_: Exception) {
             emptyList()
         }
+        if (cancellation.isCancelled()) return cancelledResult()
         if (rankedCandidates.isEmpty()) {
             return AutoConnectResult(
                 null,
@@ -85,7 +104,23 @@ class AutoConnectCoordinator(
             "No selected VPN server could establish a connection.",
             true
         )
-        for (ranked in rankedCandidates) {
+        for ((attemptIndex, ranked) in rankedCandidates.withIndex()) {
+            if (cancellation.isCancelled()) return AutoConnectResult(lastCandidate, cancelledFailure())
+            if (attemptIndex > 0) {
+                val delayMs = (INITIAL_RETRY_DELAY_MS shl (attemptIndex - 1)).coerceAtMost(MAX_RETRY_DELAY_MS)
+                try {
+                    retryDelay.pause(delayMs)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    return AutoConnectResult(lastCandidate, cancelledFailure())
+                } catch (_: Exception) {
+                    return AutoConnectResult(lastCandidate, EngineFailure(
+                        "RETRY_DELAY_FAILED", "Could not safely continue connection retries.", true
+                    ))
+                }
+                if (cancellation.isCancelled()) return AutoConnectResult(lastCandidate, cancelledFailure())
+            }
+
             lastCandidate = ranked.candidate
             val engineId = parseEngineId(ranked.candidate.engineId) ?: continue
 
@@ -98,6 +133,11 @@ class AutoConnectCoordinator(
                     true
                 )
                 continue
+            }
+
+            if (cancellation.isCancelled()) {
+                configuration.fill(0)
+                return AutoConnectResult(ranked.candidate, cancelledFailure())
             }
 
             if (configuration.isEmpty() || configuration.size > MAX_CONFIGURATION_BYTES) {
