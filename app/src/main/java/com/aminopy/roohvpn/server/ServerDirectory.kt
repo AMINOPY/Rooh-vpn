@@ -27,7 +27,7 @@ data class ServerCandidate(
  * authorized provider API. This project intentionally ships with no fake or
  * hard-coded "free VPN" endpoints.
  */
-interface ServerDirectory {
+fun interface ServerDirectory {
     fun discover(): List<ServerCandidate>
 }
 
