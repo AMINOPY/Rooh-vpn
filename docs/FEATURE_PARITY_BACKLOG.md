@@ -45,6 +45,10 @@ This checklist is a product-engineering plan based on publicly described user-fa
 - [ ] Release signing key stored outside the repository and only exposed to protected release CI.
 - [ ] Privacy policy, server operator disclosure, telemetry opt-in, retention, and account deletion semantics.
 
+## External provider compatibility
+
+- [x] Documented the supported BYO-profile path and explicit authorization boundaries for Proton VPN and other third-party providers: [EXTERNAL_PROVIDER_COMPATIBILITY.md](EXTERNAL_PROVIDER_COMPATIBILITY.md). This does not mean third-party servers are RØH infrastructure or that their native engines are integrated.
+
 ## Provider and service integrations
 
 - [ ] RØH-operated infrastructure and abuse/availability monitoring, or a provider-authorized integration.
