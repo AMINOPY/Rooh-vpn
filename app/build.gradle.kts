@@ -34,6 +34,9 @@ android {
 
 dependencies {
     implementation("com.wireguard.android:tunnel:1.0.20260102")
+    // Upstream Android binding for sing-box. Do not register an engine backend
+    // until its TUN lifecycle and end-to-end traffic path are implemented/tested.
+    implementation("com.github.singbox-android:libbox:1.14.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
