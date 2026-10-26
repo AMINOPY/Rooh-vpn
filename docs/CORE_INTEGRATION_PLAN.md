@@ -28,6 +28,12 @@ Protected device traffic
 
 Not every engine exposes the same interface. Some can provide a TUN implementation; others may expose a local SOCKS/HTTP proxy and require a separate TUN-to-proxy bridge. Never assume a proxy automatically routes all device traffic.
 
+## Current implementation snapshot (2026-10-26)
+
+The feature branch now contains the Kotlin engine contract and coordinator, encrypted local profile storage, a provider-backed server-directory interface, an HTTPS directory client with bounded response parsing, a TCP reachability probe, a deterministic endpoint selector, and an auto-connect orchestration boundary. The Android debug build and unit tests passed on the initial foundation commit; later changes must be validated by the latest CI run.
+
+These components do **not** constitute a working VPN yet: the engine registry has no production backend, no provider profile endpoint is configured, and the Android service does not establish a TUN until a real packet-forwarding implementation is integrated. Keep the feature branch unmerged until the owner approves.
+
 ## 2. Integration order
 
 ### Phase A — repository and security baseline
@@ -81,7 +87,7 @@ A true one-tap experience requires a legitimate source of profiles/endpoints:
 - a documented provider-authorized API/integration; or
 - user-imported profile/subscription as a fallback.
 
-The client can discover endpoints, check reachability, rank eligible endpoints by measured latency/failure rate, and retry with bounded backoff. It must not fabricate server availability or silently collect credentials.
+The current code defines the discovery, HTTPS parsing, reachability, ranking, profile-provisioning, and connection-orchestration boundaries. A real trusted service URL and a server-side profile provider still need to be operated and configured before the client can connect without manual configuration. The client must not fabricate server availability or silently collect credentials.
 
 **Proton VPN note:** Proton's free service is a provider service, not a public pool of generic server credentials. Do not hard-code, scrape, or redistribute Proton endpoints/credentials. Only integrate through a provider-supported, authorized mechanism; otherwise keep Proton as a reference for user experience, not as an embedded free-server backend.
 
