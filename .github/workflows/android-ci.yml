@@ -36,3 +36,10 @@ jobs:
         run: gradle :app:assembleDebug
       - name: Run unit tests
         run: gradle :app:testDebugUnitTest
+      - name: Set up Node.js for control-plane tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Test server control plane
+        working-directory: server-control-plane
+        run: npm test
