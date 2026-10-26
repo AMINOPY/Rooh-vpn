@@ -59,6 +59,15 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
                 safeMessage = "The VPN engine failed unexpectedly.",
                 retryable = true
             )
+        } catch (_: LinkageError) {
+            // JNI/native library loading failures are not Exceptions. Attempt
+            // cleanup for this adapter failure, without swallowing fatal VM errors.
+            candidate?.let(::cleanupAfterFailedStart)
+            EngineFailure(
+                code = "ENGINE_NATIVE_UNAVAILABLE",
+                safeMessage = "The VPN engine's native component is unavailable or incompatible.",
+                retryable = false
+            )
         } finally {
             configuration.fill(0)
         }
@@ -79,6 +88,13 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
                 retryable = true
             )
         }
+        catch (_: LinkageError) {
+            EngineFailure(
+                code = "ENGINE_CLEANUP_FAILED",
+                safeMessage = "The VPN engine could not be cleaned up safely.",
+                retryable = true
+            )
+        }
         if (cleanupFailure != null) activeBackend = backend
     }
 
@@ -91,6 +107,12 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
             if (failure == null) activeBackend = null
             failure
         } catch (_: Exception) {
+            EngineFailure(
+                code = "ENGINE_STOP_FAILED",
+                safeMessage = "The VPN engine could not stop cleanly.",
+                retryable = true
+            )
+        } catch (_: LinkageError) {
             EngineFailure(
                 code = "ENGINE_STOP_FAILED",
                 safeMessage = "The VPN engine could not stop cleanly.",
