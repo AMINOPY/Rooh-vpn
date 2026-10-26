@@ -5,14 +5,14 @@ import android.os.Bundle
 import android.widget.TextView
 
 /**
- * Minimal entry point while the networking core is being built.
- * This is intentionally not the final UI.
+ * Minimal status screen while the server API and consent-driven connection
+ * flow are being completed. This is intentionally not the final UI.
  */
 class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val status = TextView(this).apply {
-            text = "RØH VPN\nCore foundation in progress. No VPN engine is enabled yet."
+            text = "RØH VPN\nWireGuard engine adapter integrated.\nAutomatic connection is not ready: an authorized server/profile service and VPN consent flow are still required."
             textSize = 18f
             setPadding(32, 48, 32, 32)
         }
