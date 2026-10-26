@@ -17,7 +17,7 @@ data class ServerCandidate(
     val priority: Int = 0
 ) {
     init {
-        require(id.isNotBlank() && id.length <= 128)
+        require(id.matches(Regex("[A-Za-z0-9._-]{1,128}"))) { "Server ID must be a URL-safe opaque identifier" }
         require(isValidHost(host)) { "Server host is malformed" }
         require(port in 1..65535)
         require(region.isNotBlank() && region.length <= 80)
