@@ -23,7 +23,7 @@ This gate keeps the three remaining workstreams coordinated. They can be develop
 - Emulator tests plus physical-device tests on the supported Android versions.
 
 ### Current gate
-**NOT PASSED.** `NetworkLifecycleMonitor` now observes default-network availability/validation and safely supports idempotent registration/close, but it is not yet connected to an engine recovery policy. `RoohVpnService` is still a lifecycle shell and intentionally does not establish a TUN. The WireGuard library adapter exists, but this repository has not recorded the end-to-end device traffic/leak evidence above. Do not mark the full RØH VPN traffic path complete.
+**NOT PASSED.** `NetworkLifecycleMonitor` observes default-network availability/validation, and `NetworkRecoveryController` now provides a worker-thread policy with callback coalescing, a real-traffic health-check port, bounded single-attempt recovery, and fail-closed status. **It is not wired to a concrete WireGuard health probe/reconnect owner yet.** `RoohVpnService` remains a lifecycle shell; WireGuard's library-managed service owns its own TUN. End-to-end device traffic/leak evidence is still missing. Do not mark the full RØH VPN traffic path complete.
 
 ## Track B — Aether, Xray, and sing-box engines
 
@@ -61,7 +61,7 @@ This gate keeps the three remaining workstreams coordinated. They can be develop
 A candidate directory mirror was reviewed in [PUBLIC_SERVER_DIRECTORY_RESEARCH.md](PUBLIC_SERVER_DIRECTORY_RESEARCH.md). The candidate lists VPN Gate/OpenVPN servers, which the current WireGuard-only client cannot use. WireGuard management projects found during the search are self-hosted control planes, not public free-server pools. No compatible, verified public WireGuard server source was established, so no third-party endpoints are silently enabled or labeled as RØH servers.
 
 ### Current gate
-**NOT PASSED.** The control-plane directory is a scaffold with disabled/empty server records. A real VPN node, provisioner, deployment environment and authorized credentials were not supplied to this repository session. Code changes alone cannot create or authorize that infrastructure.
+**NOT PASSED.** The control-plane directory is a scaffold with disabled/empty server records. The client supports importing a user-generated WireGuard profile from a provider such as Proton VPN only where that provider permits third-party clients; this is BYO-profile compatibility, not RØH server infrastructure. No provider endpoints are scraped, hard-coded, or represented as RØH-operated. A real RØH node, deployed provisioner, documented provider authorization/API, deployment environment, and runtime credentials were not supplied to this repository session. Code changes alone cannot create or authorize that infrastructure.
 
 ## Shared release decision
 
