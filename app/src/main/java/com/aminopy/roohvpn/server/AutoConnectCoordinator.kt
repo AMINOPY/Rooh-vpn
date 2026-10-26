@@ -34,7 +34,11 @@ class AutoConnectCancellation {
     }
 
     internal fun detachCurrentThread() {
-        if (runner === Thread.currentThread()) runner = null
+        if (runner === Thread.currentThread()) {
+            // Do not leak this operation's interrupt flag into a reused worker.
+            if (cancelled.get()) Thread.interrupted()
+            runner = null
+        }
     }
 }
 
@@ -76,7 +80,7 @@ class AutoConnectCoordinator(
     }
 
     private fun connectInternal(cancellation: AutoConnectCancellation): AutoConnectResult {
-        if (cancellation.isCancelled()) return cancelledResult() 
+        if (cancellation.isCancelled()) return cancelledResult()
         val candidates = try {
             directory.discover()
         } catch (_: Exception) {
@@ -191,8 +195,19 @@ class AutoConnectCoordinator(
                     true
                 )
             }
-            if (failure == null) return AutoConnectResult(ranked.candidate, null)
+            if (failure == null) {
+                if (!cancellation.isCancelled()) return AutoConnectResult(ranked.candidate, null)
+                val stopFailure = connections.disconnect()
+                return if (stopFailure == null) {
+                    AutoConnectResult(ranked.candidate, cancelledFailure())
+                } else {
+                    AutoConnectResult(ranked.candidate, stopFailure)
+                }
+            }
 
+            if (cancellation.isCancelled()) {
+                return AutoConnectResult(ranked.candidate, cancelledFailure())
+            }
             lastFailure = failure
             // If cleanup could not be confirmed, do not attempt another engine
             // over a possibly live tunnel. ConnectionCoordinator reserves it.
