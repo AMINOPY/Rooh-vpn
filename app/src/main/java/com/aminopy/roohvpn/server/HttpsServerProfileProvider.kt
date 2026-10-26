@@ -22,7 +22,7 @@ class HttpsServerProfileProvider(
     private val connectTimeoutMs: Int = 4_000,
     private val readTimeoutMs: Int = 4_000,
     private val nowEpochSeconds: () -> Long = { System.currentTimeMillis() / 1000L }
-) : ServerProfileProvider {
+) : CancellableServerProfileProvider {
     private val base: URI
 
     init {
@@ -45,7 +45,11 @@ class HttpsServerProfileProvider(
         base = parsed
     }
 
-    override fun fetchConfiguration(candidate: ServerCandidate): ByteArray {
+    override fun fetchConfiguration(
+        candidate: ServerCandidate,
+        cancellation: AutoConnectCancellation
+    ): ByteArray {
+        if (cancellation.isCancelled()) throw InterruptedException("Profile request cancelled")
         // ServerCandidate constrains IDs to URL-safe path-segment characters.
         val path = base.path.trimEnd('/') + "/v1/servers/${candidate.id}/profile"
         val endpoint = URI(
@@ -58,6 +62,7 @@ class HttpsServerProfileProvider(
 
         val connection = endpoint.openConnection() as? HttpsURLConnection
             ?: throw IllegalStateException("HTTPS connection could not be created")
+        val cancellationRegistration = cancellation.onCancel { connection.disconnect() }
         connection.connectTimeout = connectTimeoutMs
         connection.readTimeout = readTimeoutMs
         connection.instanceFollowRedirects = false
@@ -68,6 +73,7 @@ class HttpsServerProfileProvider(
         connection.setRequestProperty("User-Agent", "ROH-VPN-Android")
 
         try {
+            if (cancellation.isCancelled()) throw InterruptedException("Profile request cancelled")
             val status = connection.responseCode
             if (status !in 200..299) {
                 throw IllegalStateException("Profile service returned HTTP $status")
@@ -85,10 +91,12 @@ class HttpsServerProfileProvider(
                 }
                 output.toByteArray()
             }
+            if (cancellation.isCancelled()) throw InterruptedException("Profile request cancelled")
             val body = String(bytes, StandardCharsets.UTF_8)
             return parseProfileResponse(body, candidate, nowEpochSeconds())
                 ?: throw IllegalArgumentException("Profile response failed validation")
         } finally {
+            cancellationRegistration.close()
             connection.disconnect()
         }
     }
