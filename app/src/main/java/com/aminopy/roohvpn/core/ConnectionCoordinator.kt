@@ -23,23 +23,24 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
                 )
             }
 
-            candidate = registry.backend(engineId)
+            val backend = registry.backend(engineId)
                 ?: return@synchronized EngineFailure(
                     code = "ENGINE_UNAVAILABLE",
                     safeMessage = "This VPN engine is not integrated in this build yet.",
                     retryable = false
                 )
+            candidate = backend
 
-            candidate.validate(configuration)?.let { return@synchronized it }
+            backend.validate(configuration)?.let { return@synchronized it }
 
-            candidate.start(configuration)?.let { failure ->
-                runCatching { candidate.stop() }
+            backend.start(configuration)?.let { failure ->
+                runCatching { backend.stop() }
                 return@synchronized failure
             }
 
-            val status = candidate.status()
+            val status = backend.status()
             if (status.state != EngineState.RUNNING) {
-                runCatching { candidate.stop() }
+                runCatching { backend.stop() }
                 return@synchronized EngineFailure(
                     code = "ENGINE_NOT_RUNNING",
                     safeMessage = "The engine did not confirm that it is running.",
@@ -47,7 +48,7 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
                 )
             }
 
-            activeBackend = candidate
+            activeBackend = backend
             null
         } catch (_: Exception) {
             // Native adapters are untrusted boundaries: exceptions must not
