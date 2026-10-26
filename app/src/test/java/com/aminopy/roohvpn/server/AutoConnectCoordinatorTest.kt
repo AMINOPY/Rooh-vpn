@@ -38,6 +38,33 @@ class AutoConnectCoordinatorTest {
     }
 
     @Test
+    fun retriesNextRankedCandidateWhenProfileProvisioningFails() {
+        val backend = FakeBackend()
+        val first = server.copy(id = "first")
+        val second = server.copy(id = "second")
+        val provisioned = mutableListOf<String>()
+        val coordinator = AutoConnectCoordinator(
+            directory = ServerDirectory { listOf(first, second) },
+            selector = ServerSelector(EndpointProbe { candidate ->
+                if (candidate.id == first.id) 10L else 20L
+            }),
+            profiles = ServerProfileProvider { candidate ->
+                provisioned += candidate.id
+                if (candidate.id == first.id) error("simulated provider failure")
+                byteArrayOf(4, 5, 6)
+            },
+            connections = ConnectionCoordinator(EngineRegistry(listOf(backend)))
+        )
+
+        val result = coordinator.connect()
+
+        assertTrue(result.connected)
+        assertEquals(second.id, result.selectedServer?.id)
+        assertEquals(listOf(first.id, second.id), provisioned)
+        assertEquals(1, backend.startCalls)
+    }
+
+    @Test
     fun emptyDirectoryDoesNotAttemptToConnect() {
         val backend = FakeBackend()
         val coordinator = AutoConnectCoordinator(
