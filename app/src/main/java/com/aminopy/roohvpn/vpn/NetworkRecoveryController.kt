@@ -3,15 +3,15 @@ package com.aminopy.roohvpn.vpn
 import java.io.Closeable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Applies a conservative recovery policy to default-network changes.
  *
- * This is deliberately an adapter boundary: a concrete tunnel owner must provide
- * a real end-to-end health check and a reconnect operation. A validated Android
- * network or a live native process is not sufficient evidence of tunnel health.
- * Callbacks run on a dedicated worker, never on ConnectivityManager's callback thread.
+ * A concrete tunnel owner must supply a real end-to-end health check and reconnect
+ * operation. Android network validation or a live native process is not evidence
+ * that the VPN itself is healthy. All blocking checks run off the network callback thread.
  */
 class NetworkRecoveryController(
     private val tunnel: TunnelRecoveryPort,
@@ -21,13 +21,10 @@ class NetworkRecoveryController(
     }
 ) : Closeable {
     interface TunnelRecoveryPort {
-        /** True only while this app owns a tunnel that may need recovery. */
         fun isTunnelActive(): Boolean
-
-        /** Must perform a real end-to-end check, not only inspect process/TUN state. */
+        /** Must perform a real end-to-end traffic check, not only inspect process/TUN state. */
         fun validateTunnelTraffic(): Boolean
-
-        /** Re-establishes the same authorized profile and returns only after startup is confirmed. */
+        /** Re-establish the same authorized profile and return only after startup is confirmed. */
         fun reconnect(): Boolean
     }
 
@@ -45,14 +42,14 @@ class NetworkRecoveryController(
     @Volatile private var lastStatus = Status.IDLE
 
     fun onNetworkStateChanged(state: NetworkLifecycleMonitor.State) {
-        if (closed.get() || !tunnel.isTunnelActive()) return
+        if (closed.get() || !runCatching { tunnel.isTunnelActive() }.getOrDefault(false)) return
 
-        if (state == NetworkLifecycleMonitor.State.NO_DEFAULT_NETWORK) {
+        if (state != NetworkLifecycleMonitor.State.AVAILABLE_VALIDATED) {
             publish(Status.WAITING_FOR_NETWORK)
             return
         }
 
-        // One recovery task at a time; multiple Wi-Fi/mobile callbacks are coalesced.
+        // Coalesce Wi-Fi/mobile callbacks into one active validation/recovery task.
         if (!recoveryQueued.compareAndSet(false, true)) return
         try {
             worker.execute {
@@ -79,9 +76,9 @@ class NetworkRecoveryController(
                     recoveryQueued.set(false)
                 }
             }
-        } catch (_: java.util.concurrent.RejectedExecutionException) {
+        } catch (_: RejectedExecutionException) {
             recoveryQueued.set(false)
-            if (!closed.get()) publish(Status.RECOVERY_FAILED)
+            publish(Status.RECOVERY_FAILED)
         }
     }
 
@@ -94,6 +91,7 @@ class NetworkRecoveryController(
     }
 
     private fun publish(status: Status) {
+        if (closed.get() && status != Status.CLOSED) return
         lastStatus = status
         runCatching { statusListener(status) }
     }
