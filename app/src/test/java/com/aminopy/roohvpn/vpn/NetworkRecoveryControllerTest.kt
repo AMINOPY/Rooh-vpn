@@ -104,9 +104,44 @@ class NetworkRecoveryControllerTest {
         )
         try {
             controller.onNetworkStateChanged(NetworkLifecycleMonitor.State.AVAILABLE_VALIDATED)
+            Thread.sleep(30)
             assertFalse(controller.status() == NetworkRecoveryController.Status.CHECKING_TUNNEL)
             assertEquals(0, reconnects.get())
         } finally {
+            controller.close()
+        }
+    }
+
+    @Test
+    fun networkLossDuringHealthCheckPreventsReconnect() {
+        val checkStarted = CountDownLatch(1)
+        val releaseCheck = CountDownLatch(1)
+        val reconnects = AtomicInteger()
+        val controller = NetworkRecoveryController(
+            tunnel = object : NetworkRecoveryController.TunnelRecoveryPort {
+                override fun isTunnelActive() = true
+                override fun validateTunnelTraffic(): Boolean {
+                    checkStarted.countDown()
+                    releaseCheck.await(2, TimeUnit.SECONDS)
+                    return false
+                }
+                override fun reconnect(): Boolean {
+                    reconnects.incrementAndGet()
+                    return true
+                }
+            },
+            statusListener = {}
+        )
+        try {
+            controller.onNetworkStateChanged(NetworkLifecycleMonitor.State.AVAILABLE_VALIDATED)
+            assertTrue(checkStarted.await(2, TimeUnit.SECONDS))
+            controller.onNetworkStateChanged(NetworkLifecycleMonitor.State.NO_DEFAULT_NETWORK)
+            releaseCheck.countDown()
+            Thread.sleep(80)
+            assertEquals(0, reconnects.get())
+            assertEquals(NetworkRecoveryController.Status.WAITING_FOR_NETWORK, controller.status())
+        } finally {
+            releaseCheck.countDown()
             controller.close()
         }
     }

@@ -40,9 +40,11 @@ class NetworkRecoveryController(
     private val closed = AtomicBoolean(false)
     private val recoveryQueued = AtomicBoolean(false)
     @Volatile private var lastStatus = Status.IDLE
+    @Volatile private var latestNetworkState = NetworkLifecycleMonitor.State.NO_DEFAULT_NETWORK
 
     fun onNetworkStateChanged(state: NetworkLifecycleMonitor.State) {
         if (closed.get()) return
+        latestNetworkState = state
 
         if (state != NetworkLifecycleMonitor.State.AVAILABLE_VALIDATED) {
             // A network callback must remain non-blocking. Do not call into the
@@ -58,26 +60,55 @@ class NetworkRecoveryController(
             worker.execute {
                 try {
                     if (closed.get()) return@execute
+                    if (!hasValidatedNetwork()) {
+                        publish(Status.WAITING_FOR_NETWORK)
+                        return@execute
+                    }
                     if (!tunnel.isTunnelActive()) return@execute
+
                     publish(Status.CHECKING_TUNNEL)
-                    if (tunnel.validateTunnelTraffic()) {
-                        publish(Status.RECOVERED)
+                    if (!hasValidatedNetwork()) {
+                        publish(Status.WAITING_FOR_NETWORK)
                         return@execute
                     }
 
+                    if (tunnel.validateTunnelTraffic()) {
+                        publish(if (hasValidatedNetwork()) Status.RECOVERED else Status.WAITING_FOR_NETWORK)
+                        return@execute
+                    }
+
+                    // Do not restart an engine against a network that disappeared
+                    // while the health probe was in flight.
+                    if (!hasValidatedNetwork()) {
+                        publish(Status.WAITING_FOR_NETWORK)
+                        return@execute
+                    }
                     if (!tunnel.reconnect()) {
-                        publish(Status.RECOVERY_FAILED)
+                        publish(if (hasValidatedNetwork()) Status.RECOVERY_FAILED else Status.WAITING_FOR_NETWORK)
                         return@execute
                     }
 
                     publish(
-                        if (tunnel.validateTunnelTraffic()) Status.RECOVERED
-                        else Status.RECOVERY_FAILED
+                        if (hasValidatedNetwork() && tunnel.validateTunnelTraffic()) {
+                            Status.RECOVERED
+                        } else if (hasValidatedNetwork()) {
+                            Status.RECOVERY_FAILED
+                        } else {
+                            Status.WAITING_FOR_NETWORK
+                        }
                     )
                 } catch (_: Exception) {
-                    publish(Status.RECOVERY_FAILED)
+                    publish(if (hasValidatedNetwork()) Status.RECOVERY_FAILED else Status.WAITING_FOR_NETWORK)
                 } finally {
                     recoveryQueued.set(false)
+                    // If a validated network arrived while this task was finishing,
+                    // queue one fresh pass instead of losing the transition.
+                    if (!closed.get() &&
+                        hasValidatedNetwork() &&
+                        lastStatus == Status.WAITING_FOR_NETWORK
+                    ) {
+                        onNetworkStateChanged(NetworkLifecycleMonitor.State.AVAILABLE_VALIDATED)
+                    }
                 }
             }
         } catch (_: RejectedExecutionException) {
@@ -93,6 +124,9 @@ class NetworkRecoveryController(
         worker.shutdownNow()
         publish(Status.CLOSED)
     }
+
+    private fun hasValidatedNetwork(): Boolean =
+        latestNetworkState == NetworkLifecycleMonitor.State.AVAILABLE_VALIDATED
 
     private fun publish(status: Status) {
         if (closed.get() && status != Status.CLOSED) return
