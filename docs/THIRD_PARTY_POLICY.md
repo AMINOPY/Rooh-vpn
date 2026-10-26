@@ -20,8 +20,8 @@ Record:
 
 ## Engine wrapper dependencies under evaluation
 
-- **singbox-android/libbox 1.14.0:** Android binding for sing-box, declared GPL-3.0 in its upstream repository (https://github.com/singbox-android/libbox). The dependency has been added on the feature branch as an integration step, but no RØH sing-box backend is registered yet. Before release, review GPL obligations, the exact transitive dependency graph, native ABIs, and notices. Dependency resolution alone is not functional engine support.
-- **XTLS/libXray:** official Xray-core wrapper (https://github.com/XTLS/libXray), MIT-licensed wrapper repository. It documents an Android build from source and warns that its API is not guaranteed stable. Xray is not yet included in the app build: a pinned source build, generated Android artifact, adapter, lifecycle/TUN integration, and tests are still required. Review the exact Xray-core license and all transitive dependencies separately.
+- **singbox-android/libbox 1.14.0:** Android binding for sing-box, declared GPL-3.0 in its upstream repository (https://github.com/singbox-android/libbox). The dependency is declared on the feature branch, but no RØH sing-box backend is registered yet. Upstream distributes its AAR as a large release asset. Before release, review GPL obligations, the exact transitive dependency graph, native ABIs, and notices. Dependency resolution alone is not functional engine support.
+- **XTLS/libXray:** official Xray-core wrapper (https://github.com/XTLS/libXray), MIT-licensed wrapper repository. It documents an Android build from source and warns that its API is not guaranteed stable. Xray is not yet included in the app build: a pinned source build, generated Android artifact, adapter, lifecycle/TUN integration, and tests are still required. Its upstream explicitly warns against loading libXray and another independently built Go runtime in the same process. Review the exact Xray-core license and all transitive dependencies separately.
 
 ## Important upstream distinctions
 
