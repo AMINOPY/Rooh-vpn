@@ -17,15 +17,15 @@ class WireGuardEngineBackend(context: Context) : EngineBackend {
     private val backend = GoBackend(context.applicationContext)
     private val tunnel = object : Tunnel {
         @Volatile
-        private var lastState = State.DOWN
+        private var lastState = Tunnel.State.DOWN
 
         override fun getName(): String = TUNNEL_NAME
 
-        override fun onStateChange(newState: State) {
+        override fun onStateChange(newState: Tunnel.State) {
             lastState = newState
         }
 
-        fun lastKnownState(): State = lastState
+        fun lastKnownState(): Tunnel.State = lastState
     }
 
     override val id: EngineId = EngineId.WIREGUARD
@@ -66,8 +66,8 @@ class WireGuardEngineBackend(context: Context) : EngineBackend {
         }
 
         return try {
-            val state = backend.setState(tunnel, Tunnel.State.UP, parsed)
-            if (state == Tunnel.State.UP) null else EngineFailure(
+            val state = backend.setState(tunnel, Tunnel.Tunnel.State.UP, parsed)
+            if (state == Tunnel.Tunnel.State.UP) null else EngineFailure(
                 code = "WIREGUARD_NOT_RUNNING",
                 safeMessage = "WireGuard did not confirm that the tunnel is running.",
                 retryable = true
@@ -90,15 +90,15 @@ class WireGuardEngineBackend(context: Context) : EngineBackend {
         }
         return EngineStatus(
             engineId = id,
-            state = if (state == Tunnel.State.UP) EngineState.RUNNING else EngineState.STOPPED
+            state = if (state == Tunnel.Tunnel.State.UP) EngineState.RUNNING else EngineState.STOPPED
         )
     }
 
     @Synchronized
     override fun stop(): EngineFailure? {
         return try {
-            val state = backend.setState(tunnel, Tunnel.State.DOWN, null)
-            if (state == Tunnel.State.DOWN) null else EngineFailure(
+            val state = backend.setState(tunnel, Tunnel.Tunnel.State.DOWN, null)
+            if (state == Tunnel.Tunnel.State.DOWN) null else EngineFailure(
                 code = "WIREGUARD_STOP_UNCONFIRMED",
                 safeMessage = "WireGuard did not confirm that the tunnel stopped.",
                 retryable = true
@@ -113,7 +113,7 @@ class WireGuardEngineBackend(context: Context) : EngineBackend {
     }
 
     private fun parse(configuration: ByteArray): Config =
-        ByteArrayInputStream(configuration).use(Config::parse)
+        ByteArrayInputStream(configuration).use { Config.parse(it) }
 
     private fun invalidConfiguration() = EngineFailure(
         code = "WIREGUARD_INVALID_CONFIG",
