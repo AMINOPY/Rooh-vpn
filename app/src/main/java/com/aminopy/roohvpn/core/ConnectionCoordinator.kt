@@ -34,13 +34,13 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
             backend.validate(configuration)?.let { return@synchronized it }
 
             backend.start(configuration)?.let { failure ->
-                runCatching { backend.stop() }
+                cleanupAfterFailedStart(backend)
                 return@synchronized failure
             }
 
             val status = backend.status()
             if (status.state != EngineState.RUNNING) {
-                runCatching { backend.stop() }
+                cleanupAfterFailedStart(backend)
                 return@synchronized EngineFailure(
                     code = "ENGINE_NOT_RUNNING",
                     safeMessage = "The engine did not confirm that it is running.",
@@ -53,7 +53,7 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
         } catch (_: Exception) {
             // Native adapters are untrusted boundaries: exceptions must not
             // escape to UI or leave a partially started process running.
-            candidate?.let { runCatching { it.stop() } }
+            candidate?.let { cleanupAfterFailedStart(it) }
             EngineFailure(
                 code = "ENGINE_INTERNAL_ERROR",
                 safeMessage = "The VPN engine failed unexpectedly.",
@@ -79,6 +79,20 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
                 retryable = true
             )
         }
+    }
+
+    /** Keep the backend reserved if cleanup is not positively confirmed. */
+    private fun cleanupAfterFailedStart(backend: EngineBackend) {
+        val cleanupFailure = try {
+            backend.stop()
+        } catch (_: Exception) {
+            EngineFailure(
+                code = "ENGINE_CLEANUP_FAILED",
+                safeMessage = "The VPN engine could not be cleaned up after a failed start.",
+                retryable = true
+            )
+        }
+        if (cleanupFailure != null) activeBackend = backend
     }
 
     fun activeEngine(): EngineId? = synchronized(lock) {
