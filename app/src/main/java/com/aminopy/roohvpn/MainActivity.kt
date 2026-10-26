@@ -12,7 +12,6 @@ import com.aminopy.roohvpn.core.EngineFailure
 import com.aminopy.roohvpn.core.EngineConfigClassifier
 import com.aminopy.roohvpn.core.ImportedProfileFormat
 import com.aminopy.roohvpn.core.EngineId
-import java.io.ByteArrayOutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -99,24 +98,16 @@ class MainActivity : Activity() {
             renderState()
             return
         }
+        var importedBytes: ByteArray? = null
         try {
-            val bytes = contentResolver.openInputStream(uri)?.use { input ->
-                val output = ByteArrayOutputStream()
-                val buffer = ByteArray(4096)
-                var total = 0
-                while (true) {
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    total += count
-                    require(total <= MAX_CONFIG_BYTES) { "Profile exceeds size limit" }
-                    output.write(buffer, 0, count)
-                }
-                output.toByteArray()
+            importedBytes = contentResolver.openInputStream(uri)?.use { input ->
+                BoundedProfileReader.read(input, MAX_CONFIG_BYTES)
             } ?: throw IllegalArgumentException("Could not read profile")
-            require(bytes.isNotEmpty()) { "Profile is empty" }
-            val classification = EngineConfigClassifier.classify(bytes)
+            require(importedBytes!!.isNotEmpty()) { "Profile is empty" }
+            val classification = EngineConfigClassifier.classify(importedBytes!!)
             if (classification.format != ImportedProfileFormat.WIREGUARD) {
-                bytes.fill(0)
+                importedBytes!!.fill(0)
+                importedBytes = null
                 pendingConfiguration?.fill(0)
                 pendingConfiguration = null
                 lastStatus = when (classification.format) {
@@ -131,9 +122,11 @@ class MainActivity : Activity() {
                 renderState()
                 return
             }
-            pendingConfiguration = bytes
+            pendingConfiguration = importedBytes
+            importedBytes = null // ownership transferred to pendingConfiguration
             lastStatus = "WireGuard profile loaded in memory only; this screen does not save the private key."
         } catch (_: Exception) {
+            importedBytes?.fill(0)
             lastStatus = "Profile could not be read or exceeds the 64 KiB limit."
         }
         renderState()
