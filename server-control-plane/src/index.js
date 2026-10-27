@@ -24,6 +24,41 @@ function json(body, status = 200, extraHeaders = {}) {
   });
 }
 
+/** Read an upstream JSON response with a streaming byte limit, before buffering it all. */
+export async function readBoundedJson(response, maxBytes) {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) throw new TypeError("maxBytes must be a positive safe integer");
+  if (!response.body) throw new Error("upstream response has no body");
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel("response exceeds configured size limit").catch(() => {});
+        throw new Error("upstream response exceeds size limit");
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    try {
+      return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    } finally {
+      bytes.fill(0);
+    }
+  } finally {
+    for (const chunk of chunks) chunk.fill(0);
+    try { reader.releaseLock(); } catch {}
+  }
+}
+
 function decodeBase64Url(value) {
   const padded = value.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - value.length % 4) % 4);
   return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
@@ -98,16 +133,16 @@ async function issueProfile(request, env, serverId) {
   if (!upstream.ok) return json({ error: "profile_service_unavailable" }, 503);
   let issued;
   try {
-    const raw = await upstream.text();
-    if (new TextEncoder().encode(raw).length > MAX_PROFILE_BYTES + 4096) throw new Error();
-    issued = JSON.parse(raw);
+    issued = await readBoundedJson(upstream, MAX_PROFILE_BYTES + 4096);
   } catch {
     return json({ error: "invalid_profile_response" }, 502);
   }
   const norm = value => String(value).toLowerCase().replace(/[_ ]/g, "-");
   if (issued.serverId !== row.id || norm(issued.engine) !== norm(row.engine) || typeof issued.configuration !== "string") return json({ error: "invalid_profile_response" }, 502);
   const configBytes = new TextEncoder().encode(issued.configuration);
-  if (configBytes.length < 1 || configBytes.length > MAX_PROFILE_BYTES) return json({ error: "invalid_profile_response" }, 502);
+  const configSizeValid = configBytes.length >= 1 && configBytes.length <= MAX_PROFILE_BYTES;
+  configBytes.fill(0);
+  if (!configSizeValid) return json({ error: "invalid_profile_response" }, 502);
   const now = Math.floor(Date.now() / 1000);
   if (!Number.isInteger(issued.expiresAtEpochSeconds) || issued.expiresAtEpochSeconds <= now) {
     return json({ error: "invalid_profile_response" }, 502);
