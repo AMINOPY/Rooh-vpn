@@ -1,47 +1,57 @@
 package com.aminopy.roohvpn.core
 
 /**
- * Serializes engine lifecycle transitions and refuses to report success until
- * a backend reports RUNNING. Call this from a worker thread, never the main
- * thread, because native engine start/stop operations may block.
+ * Serializes engine lifecycle transitions without holding the coordinator lock
+ * while native start/stop calls run. UI state reads therefore never wait for a
+ * potentially slow JNI operation.
  *
- * The configuration byte array is an ephemeral secret buffer and is zeroed
- * before this method returns. Callers retaining a profile must pass a copy.
+ * The configuration byte array is ephemeral and is zeroed before this method
+ * returns. Callers retaining a profile must pass a copy.
  */
 class ConnectionCoordinator(private val registry: EngineRegistry) {
     private val lock = Any()
-    private var activeBackend: EngineBackend? = null
 
-    fun connect(engineId: EngineId, configuration: ByteArray): EngineFailure? = synchronized(lock) {
-        var candidate: EngineBackend? = null
-        try {
-            if (activeBackend != null) {
-                return@synchronized EngineFailure(
+    @Volatile private var activeBackend: EngineBackend? = null
+    @Volatile private var reservedBackend: EngineBackend? = null
+    @Volatile private var operationInProgress = false
+
+    fun connect(engineId: EngineId, configuration: ByteArray): EngineFailure? {
+        val backend = synchronized(lock) {
+            if (operationInProgress || activeBackend != null || reservedBackend != null) {
+                configuration.fill(0)
+                return EngineFailure(
                     code = "ENGINE_ALREADY_ACTIVE",
-                    safeMessage = "A VPN engine is already active.",
+                    safeMessage = "A VPN engine is already active or changing state.",
                     retryable = false
                 )
             }
 
-            val backend = registry.backend(engineId)
-                ?: return@synchronized EngineFailure(
-                    code = "ENGINE_UNAVAILABLE",
-                    safeMessage = "This VPN engine is not integrated in this build yet.",
-                    retryable = false
-                )
-            candidate = backend
+            val selected = registry.backend(engineId)
+                ?: run {
+                    configuration.fill(0)
+                    return EngineFailure(
+                        code = "ENGINE_UNAVAILABLE",
+                        safeMessage = "This VPN engine is not integrated in this build yet.",
+                        retryable = false
+                    )
+                }
+            reservedBackend = selected
+            operationInProgress = true
+            selected
+        }
 
-            backend.validate(configuration)?.let { return@synchronized it }
+        try {
+            backend.validate(configuration)?.let { return it }
 
             backend.start(configuration)?.let { failure ->
                 cleanupAfterFailedStart(backend)
-                return@synchronized failure
+                return failure
             }
 
             val status = backend.status()
             if (status.engineId != engineId) {
                 cleanupAfterFailedStart(backend)
-                return@synchronized EngineFailure(
+                return EngineFailure(
                     code = "ENGINE_STATUS_MISMATCH",
                     safeMessage = "The engine returned a status for a different engine.",
                     retryable = false
@@ -49,7 +59,7 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
             }
             if (status.state != EngineState.RUNNING) {
                 cleanupAfterFailedStart(backend)
-                return@synchronized EngineFailure(
+                return EngineFailure(
                     code = "ENGINE_NOT_RUNNING",
                     safeMessage = "The engine did not confirm that it is running.",
                     retryable = true
@@ -57,34 +67,33 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
             }
 
             activeBackend = backend
-            null
+            return null
         } catch (_: Exception) {
-            // Native adapters are untrusted boundaries: exceptions must not
-            // escape to UI or leave a partially started process running.
-            candidate?.let(::cleanupAfterFailedStart)
-            EngineFailure(
+            cleanupAfterFailedStart(backend)
+            return EngineFailure(
                 code = "ENGINE_INTERNAL_ERROR",
                 safeMessage = "The VPN engine failed unexpectedly.",
                 retryable = true
             )
         } catch (_: LinkageError) {
-            // JNI/native library loading failures are not Exceptions. Attempt
-            // cleanup for this adapter failure, without swallowing fatal VM errors.
-            candidate?.let(::cleanupAfterFailedStart)
-            EngineFailure(
+            cleanupAfterFailedStart(backend)
+            return EngineFailure(
                 code = "ENGINE_NATIVE_UNAVAILABLE",
                 safeMessage = "The VPN engine's native component is unavailable or incompatible.",
                 retryable = false
             )
         } finally {
             configuration.fill(0)
+            synchronized(lock) {
+                if (reservedBackend === backend) reservedBackend = null
+                operationInProgress = false
+            }
         }
     }
 
     /**
-     * A failed cleanup must reserve the backend so a second engine cannot
-     * start over a possibly live tunnel. A null stop result is the adapter's
-     * explicit confirmation that cleanup completed.
+     * A failed cleanup must reserve the backend so another engine cannot start
+     * over a possibly live tunnel. Null from stop explicitly confirms cleanup.
      */
     private fun cleanupAfterFailedStart(backend: EngineBackend) {
         val cleanupFailure = try {
@@ -95,8 +104,7 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
                 safeMessage = "The VPN engine could not be cleaned up safely.",
                 retryable = true
             )
-        }
-        catch (_: LinkageError) {
+        } catch (_: LinkageError) {
             EngineFailure(
                 code = "ENGINE_CLEANUP_FAILED",
                 safeMessage = "The VPN engine could not be cleaned up safely.",
@@ -106,32 +114,46 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
         if (cleanupFailure != null) activeBackend = backend
     }
 
-    fun disconnect(): EngineFailure? = synchronized(lock) {
-        val backend = activeBackend ?: return@synchronized null
+    fun disconnect(): EngineFailure? {
+        val backend = synchronized(lock) {
+            if (operationInProgress) {
+                return EngineFailure(
+                    code = "ENGINE_OPERATION_IN_PROGRESS",
+                    safeMessage = "The VPN engine is already changing state.",
+                    retryable = true
+                )
+            }
+            val current = activeBackend ?: return null
+            operationInProgress = true
+            current
+        }
+
         try {
             val failure = backend.stop()
-            // Keep the backend marked active when stop is not confirmed. This
-            // blocks a second engine from starting over a possibly live tunnel.
+            // Retain active state unless stop is explicitly confirmed.
             if (failure == null) activeBackend = null
-            failure
+            return failure
         } catch (_: Exception) {
-            EngineFailure(
+            return EngineFailure(
                 code = "ENGINE_STOP_FAILED",
                 safeMessage = "The VPN engine could not stop cleanly.",
                 retryable = true
             )
         } catch (_: LinkageError) {
-            EngineFailure(
+            return EngineFailure(
                 code = "ENGINE_STOP_FAILED",
                 safeMessage = "The VPN engine could not stop cleanly.",
                 retryable = true
             )
+        } finally {
+            synchronized(lock) { operationInProgress = false }
         }
     }
 
     fun isEngineAvailable(engineId: EngineId): Boolean = registry.backend(engineId) != null
 
-    fun activeEngine(): EngineId? = synchronized(lock) {
-        activeBackend?.id
-    }
+    /** A lock-free read suitable for UI rendering. */
+    fun activeEngine(): EngineId? = activeBackend?.id
+
+    fun isOperationInProgress(): Boolean = operationInProgress
 }
