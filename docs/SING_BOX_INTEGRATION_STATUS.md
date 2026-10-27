@@ -1,13 +1,14 @@
 # sing-box integration status
 
-The Android app currently includes the libbox dependency, but this is not a connected VPN engine. SingBoxProfilePreflight performs bounded structural checks only; it is not the upstream libbox config validator and does not start a tunnel.
+The Android app includes libbox and now has both bounded structural preflight and a native configuration-validation adapter (`SingBoxNativeConfigValidator`). The adapter requires the application to initialize libbox with `Libbox.setup(...)` first. Neither validator starts a tunnel.
 
-Before registering EngineId.SING_BOX, the app still needs:
-- a foreground Android VpnService implementing the exact PlatformInterface required by the pinned libbox API;
-- command-server creation, service start/reload, status/error propagation and deterministic stop/descriptor cleanup;
-- protecting engine-owned sockets before establishing the TUN;
-- explicit VPN consent handling and safe service lifecycle/revocation behavior;
-- native libbox configuration validation for the pinned version;
-- device tests for TCP, UDP, DNS, IPv4/IPv6, network handoff, socket protection and leak prevention.
+## Remaining before sing-box can be registered as available
 
-Do not mark sing-box as available in EngineRegistry until these steps and tests pass. Do not interpret structural preflight success as runtime validation.
+- A foreground Android `VpnService` implementing the exact `PlatformInterface` required by the pinned libbox API.
+- Command-server creation, service start/reload, status/error propagation and deterministic stop/descriptor cleanup.
+- Protect engine-owned sockets before establishing the TUN.
+- Explicit VPN consent handling and safe service lifecycle/revocation behavior.
+- Runtime initialization of libbox and calling native validation before every start.
+- Device tests for TCP, UDP, DNS, IPv4/IPv6, network handoff, socket protection and leak prevention.
+
+Do not mark `EngineId.SING_BOX` as available in `EngineRegistry` until these steps and tests pass. A successful config check is not evidence that traffic is being forwarded.
