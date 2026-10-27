@@ -1,10 +1,8 @@
 package com.aminopy.roohvpn.core
 
 import android.content.Context
-import android.os.Build
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.SetupOptions
-import org.json.JSONObject
 
 /**
  * Process-wide initialization for the pinned libbox binding.
@@ -39,10 +37,6 @@ object SingBoxLibboxRuntime {
                 debug = false
                 appVersion = "0.1.0"
                 appMarketingVersion = "0.1.0"
-                platformMetadata = JSONObject().apply {
-                    put("os", "Android")
-                    put("sdk", Build.VERSION.SDK_INT)
-                }.toString()
             }
 
             Libbox.setup(options)
