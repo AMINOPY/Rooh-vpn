@@ -58,16 +58,32 @@ class WireGuardEngineBackend(context: Context) : EngineBackend {
 
         return try {
             val state = backend.setState(tunnel, Tunnel.State.UP, parsed)
-            if (state == Tunnel.State.UP) null else EngineFailure(
-                code = "WIREGUARD_NOT_RUNNING",
-                safeMessage = "WireGuard did not confirm that the tunnel is running.",
-                retryable = true
-            )
+            if (state == Tunnel.State.UP) {
+                null
+            } else {
+                // A backend may partially allocate resources before returning an
+                // unexpected state. Attempt a local rollback before reporting failure;
+                // ConnectionCoordinator performs a second guarded cleanup as well.
+                stopAfterFailedStart()
+                EngineFailure(
+                    code = "WIREGUARD_NOT_RUNNING",
+                    safeMessage = "WireGuard did not confirm that the tunnel is running.",
+                    retryable = true
+                )
+            }
         } catch (_: Exception) {
+            stopAfterFailedStart()
             EngineFailure(
                 code = "WIREGUARD_START_FAILED",
                 safeMessage = "WireGuard could not start. Check VPN permission and the connection profile.",
                 retryable = true
+            )
+        } catch (_: LinkageError) {
+            stopAfterFailedStart()
+            EngineFailure(
+                code = "WIREGUARD_NATIVE_UNAVAILABLE",
+                safeMessage = "WireGuard's native component is unavailable or incompatible.",
+                retryable = false
             )
         }
     }
@@ -100,6 +116,21 @@ class WireGuardEngineBackend(context: Context) : EngineBackend {
                 safeMessage = "WireGuard could not stop cleanly.",
                 retryable = true
             )
+        }
+    }
+
+    /**
+     * Best-effort rollback for a partially completed native start. Never include
+     * the native exception or configuration in diagnostics because either may
+     * contain implementation details or secret material.
+     */
+    private fun stopAfterFailedStart() {
+        try {
+            backend.setState(tunnel, Tunnel.State.DOWN, null)
+        } catch (_: Exception) {
+            // The coordinator retains this backend as active if its cleanup also fails.
+        } catch (_: LinkageError) {
+            // Keep the public failure message redacted and let coordinator cleanup retry.
         }
     }
 
