@@ -205,7 +205,7 @@ class ConnectionCoordinatorTest {
         val secondConfig = byteArrayOf(2)
         val secondFailure = coordinator.connect(EngineId.WIREGUARD, secondConfig)
         assertEquals("ENGINE_ALREADY_ACTIVE", secondFailure?.code)
-        assertEquals(byteArrayOf(0), secondConfig)
+        assertFalse(secondConfig.any { it.toInt() != 0 })
 
         releaseStart.countDown()
         connectThread.join(2_000)
