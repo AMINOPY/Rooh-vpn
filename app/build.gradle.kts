@@ -34,6 +34,8 @@ android {
 
 dependencies {
     implementation("com.wireguard.android:tunnel:1.0.20260102")
+    // Generated from the pinned xray-core submodule by Android CI.
+    implementation(files("libs/xray-core.aar"))
     // Upstream Android binding for sing-box. Do not register an engine backend
     // until its TUN lifecycle and end-to-end traffic path are implemented/tested.
     implementation("com.github.singbox-android:libbox:1.14.0")
