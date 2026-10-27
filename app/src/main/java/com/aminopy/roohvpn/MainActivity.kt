@@ -19,6 +19,7 @@ import java.util.concurrent.Executors
 /** Explicit-consent WireGuard connection screen; no endpoints or credentials are fabricated. */
 class MainActivity : Activity() {
     private lateinit var status: TextView
+    private lateinit var engineStatus: TextView
     private lateinit var importButton: Button
     private lateinit var connectButton: Button
     private lateinit var disconnectButton: Button
@@ -34,6 +35,16 @@ class MainActivity : Activity() {
             setPadding(32, 48, 32, 32)
         }
         status = TextView(this).apply { textSize = 17f }
+        engineStatus = TextView(this).apply {
+            textSize = 14f
+            text = buildString {
+                append("Engine availability (priority order)\\n")
+                append("1. Xray-core — not integrated\\n")
+                append("2. sing-box — library dependency only; adapter not integrated\\n")
+                append("3. Aether — reviewed, not integrated\\n")
+                append("4. WireGuard — adapter integrated; real traffic not device-verified")
+            }
+        }
         importButton = Button(this).apply {
             text = "Import WireGuard profile"
             setOnClickListener { chooseProfile() }
@@ -47,6 +58,7 @@ class MainActivity : Activity() {
             setOnClickListener { disconnect() }
         }
         root.addView(status, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        root.addView(engineStatus, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         root.addView(importButton)
         root.addView(connectButton)
         root.addView(disconnectButton)
