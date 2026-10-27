@@ -56,7 +56,7 @@ class MainActivity : Activity() {
                     if (id == EngineId.WIREGUARD && coordinator.isEngineAvailable(id)) {
                         append("; end-to-end traffic not device-verified")
                     }
-                    if (index != engines.lastIndex) append("\\n")
+                    if (index != engines.lastIndex) append("\n")
                 }
             }
         }
