@@ -38,6 +38,7 @@ class EngineRegistryTest {
         assertNull(registry.backend(EngineId.AETHER))
         assertNull(registry.backend(EngineId.XRAY))
         assertNull(registry.backend(EngineId.SING_BOX))
+        assertNull(registry.backend(EngineId.PG_CORE))
     }
 
     @Test(expected = IllegalArgumentException::class)
