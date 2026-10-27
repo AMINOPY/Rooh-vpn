@@ -94,6 +94,8 @@ class WireGuardEngineBackend(context: Context) : EngineBackend {
             backend.getState(tunnel)
         } catch (_: Exception) {
             return EngineStatus(id, EngineState.FAILED, "WireGuard status is unavailable.")
+        } catch (_: LinkageError) {
+            return EngineStatus(id, EngineState.FAILED, "WireGuard native status is unavailable.")
         }
         return EngineStatus(
             engineId = id,
@@ -114,6 +116,12 @@ class WireGuardEngineBackend(context: Context) : EngineBackend {
             EngineFailure(
                 code = "WIREGUARD_STOP_FAILED",
                 safeMessage = "WireGuard could not stop cleanly.",
+                retryable = true
+            )
+        } catch (_: LinkageError) {
+            EngineFailure(
+                code = "WIREGUARD_NATIVE_UNAVAILABLE",
+                safeMessage = "WireGuard's native component is unavailable; shutdown could not be confirmed.",
                 retryable = true
             )
         }
