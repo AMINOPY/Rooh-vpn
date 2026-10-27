@@ -5,6 +5,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertNotNull
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 class ConnectionCoordinatorTest {
     @Test(expected = IllegalArgumentException::class)
@@ -127,6 +130,87 @@ class ConnectionCoordinatorTest {
         assertEquals("ENGINE_NOT_RUNNING", failure?.code)
         assertEquals(1, backend.stopCalls)
         assertNull(coordinator.activeEngine())
+    }
+
+
+    @Test
+    fun uiStateReadDoesNotWaitForSlowNativeStart() {
+        val enteredStart = CountDownLatch(1)
+        val releaseStart = CountDownLatch(1)
+        val backend = object : EngineBackend {
+            override val id = EngineId.WIREGUARD
+            override val capabilities = EngineCapabilities(
+                tunnelMode = TunnelMode.NATIVE_TUN,
+                supportsIpv4 = true,
+                supportsIpv6 = true,
+                supportsDnsRouting = true,
+                supportsPerAppRouting = false,
+                supportedConfigFormats = setOf("test")
+            )
+            override fun validate(configuration: ByteArray): EngineFailure? = null
+            override fun start(configuration: ByteArray): EngineFailure? {
+                enteredStart.countDown()
+                check(releaseStart.await(3, TimeUnit.SECONDS))
+                return null
+            }
+            override fun status() = EngineStatus(id, EngineState.RUNNING)
+            override fun stop(): EngineFailure? = null
+        }
+        val coordinator = ConnectionCoordinator(EngineRegistry(listOf(backend)))
+        val result = AtomicReference<EngineFailure?>()
+        val connectThread = Thread { result.set(coordinator.connect(EngineId.WIREGUARD, byteArrayOf(1))) }
+
+        connectThread.start()
+        assertEquals(true, enteredStart.await(1, TimeUnit.SECONDS))
+        // These are the reads the Activity performs while native start is in flight.
+        assertNull(coordinator.activeEngine())
+        assertEquals(true, coordinator.isOperationInProgress())
+        releaseStart.countDown()
+        connectThread.join(2_000)
+
+        assertEquals(false, connectThread.isAlive)
+        assertNull(result.get())
+        assertEquals(EngineId.WIREGUARD, coordinator.activeEngine())
+    }
+
+    @Test
+    fun secondConnectIsRejectedWhileFirstBackendIsStarting() {
+        val enteredStart = CountDownLatch(1)
+        val releaseStart = CountDownLatch(1)
+        val backend = object : EngineBackend {
+            override val id = EngineId.WIREGUARD
+            override val capabilities = EngineCapabilities(
+                tunnelMode = TunnelMode.NATIVE_TUN,
+                supportsIpv4 = true,
+                supportsIpv6 = true,
+                supportsDnsRouting = true,
+                supportsPerAppRouting = false,
+                supportedConfigFormats = setOf("test")
+            )
+            override fun validate(configuration: ByteArray): EngineFailure? = null
+            override fun start(configuration: ByteArray): EngineFailure? {
+                enteredStart.countDown()
+                check(releaseStart.await(3, TimeUnit.SECONDS))
+                return null
+            }
+            override fun status() = EngineStatus(id, EngineState.RUNNING)
+            override fun stop(): EngineFailure? = null
+        }
+        val coordinator = ConnectionCoordinator(EngineRegistry(listOf(backend)))
+        val firstResult = AtomicReference<EngineFailure?>()
+        val connectThread = Thread { firstResult.set(coordinator.connect(EngineId.WIREGUARD, byteArrayOf(1))) }
+
+        connectThread.start()
+        assertEquals(true, enteredStart.await(1, TimeUnit.SECONDS))
+        val secondConfig = byteArrayOf(2)
+        val secondFailure = coordinator.connect(EngineId.WIREGUARD, secondConfig)
+        assertEquals("ENGINE_ALREADY_ACTIVE", secondFailure?.code)
+        assertEquals(byteArrayOf(0), secondConfig)
+
+        releaseStart.countDown()
+        connectThread.join(2_000)
+        assertEquals(false, connectThread.isAlive)
+        assertNull(firstResult.get())
     }
 
     private class FakeBackend(
