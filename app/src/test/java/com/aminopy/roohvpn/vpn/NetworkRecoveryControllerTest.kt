@@ -113,6 +113,34 @@ class NetworkRecoveryControllerTest {
     }
 
     @Test
+    fun validatedNetworkWithNoActiveTunnelDoesNotSpinRecoveryWorker() {
+        val activeChecks = AtomicInteger()
+        val firstCheck = CountDownLatch(1)
+        val controller = NetworkRecoveryController(
+            tunnel = object : NetworkRecoveryController.TunnelRecoveryPort {
+                override fun isTunnelActive(): Boolean {
+                    activeChecks.incrementAndGet()
+                    firstCheck.countDown()
+                    return false
+                }
+                override fun validateTunnelTraffic() = false
+                override fun reconnect() = false
+            },
+            statusListener = {}
+        )
+        try {
+            controller.onNetworkStateChanged(NetworkLifecycleMonitor.State.NO_DEFAULT_NETWORK)
+            controller.onNetworkStateChanged(NetworkLifecycleMonitor.State.AVAILABLE_VALIDATED)
+            assertTrue(firstCheck.await(2, TimeUnit.SECONDS))
+            Thread.sleep(100)
+            assertEquals(1, activeChecks.get())
+            assertEquals(NetworkRecoveryController.Status.IDLE, controller.status())
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
     fun nativeLinkageFailureReportsRecoveryFailureInsteadOfStickingChecking() {
         val finished = CountDownLatch(1)
         val controller = NetworkRecoveryController(
