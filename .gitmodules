@@ -1,0 +1,3 @@
+[submodule "pg-core"]
+	path = pg-core
+	url = https://github.com/AMINOPY/pg-core.git
