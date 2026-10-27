@@ -4,7 +4,8 @@ enum class EngineId {
     XRAY,
     AETHER,
     SING_BOX,
-    WIREGUARD
+    WIREGUARD,
+    PG_CORE
 }
 
 enum class TunnelMode {
