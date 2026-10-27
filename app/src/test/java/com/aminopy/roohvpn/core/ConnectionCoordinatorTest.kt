@@ -105,6 +105,18 @@ class ConnectionCoordinatorTest {
     }
 
     @Test
+    fun statusFromAnotherEngineIsRejectedAndCleanedUp() {
+        val backend = FakeBackend(statusEngineId = EngineId.SING_BOX)
+        val coordinator = ConnectionCoordinator(EngineRegistry(listOf(backend)))
+
+        val failure = coordinator.connect(EngineId.XRAY, byteArrayOf(1))
+
+        assertEquals("ENGINE_STATUS_MISMATCH", failure?.code)
+        assertEquals(1, backend.stopCalls)
+        assertNull(coordinator.activeEngine())
+    }
+
+    @Test
     fun nonRunningStatusIsNotReportedAsSuccess() {
         val backend = FakeBackend(stateAfterStart = EngineState.STARTING)
         val coordinator = ConnectionCoordinator(EngineRegistry(listOf(backend)))
@@ -119,6 +131,7 @@ class ConnectionCoordinatorTest {
 
     private class FakeBackend(
         private val stateAfterStart: EngineState = EngineState.RUNNING,
+        private val statusEngineId: EngineId = EngineId.XRAY,
         private val startFailure: EngineFailure? = null,
         private val throwOnStart: Boolean = false,
         private val throwLinkageErrorOnStart: Boolean = false,
@@ -141,7 +154,7 @@ class ConnectionCoordinatorTest {
             if (throwLinkageErrorOnStart) throw UnsatisfiedLinkError("native library missing")
             return startFailure
         }
-        override fun status() = EngineStatus(id, stateAfterStart)
+        override fun status() = EngineStatus(statusEngineId, stateAfterStart)
         override fun stop(): EngineFailure? {
             stopCalls += 1
             return stopFailure
