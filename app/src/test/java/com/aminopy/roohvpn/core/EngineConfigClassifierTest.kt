@@ -48,4 +48,24 @@ class EngineConfigClassifierTest {
         val oversized = ByteArray(1024 * 1024 + 1) { 'x'.code.toByte() }
         assertEquals(ImportedProfileFormat.UNKNOWN, EngineConfigClassifier.classify(oversized).format)
     }
+
+    @Test fun rejectsMalformedUtf8InsteadOfClassifyingReplacementCharacters() {
+        val malformed = byteArrayOf(
+            0x7B, 0x22, 0x6F, 0x75, 0x74, 0x62, 0x6F, 0x75, 0x6E, 0x64, 0x73,
+            0x22, 0x3A, 0x5B, 0x7B, 0x22, 0x70, 0x72, 0x6F, 0x74, 0x6F, 0x63,
+            0x6F, 0x6C, 0x22, 0x3A, 0x22, 0x76, 0x6C, 0x65, 0x73, 0x73, 0x22,
+            0x7D, 0x5D, 0x7D, 0xC3.toByte(), 0x28
+        )
+        assertEquals(
+            ImportedProfileFormat.UNKNOWN,
+            EngineConfigClassifier.classify(malformed).format
+        )
+    }
+
+    @Test fun doesNotClassifyNonStringProtocolAsXray() {
+        assertEquals(
+            ImportedProfileFormat.UNKNOWN,
+            classify("""{"outbounds":[{"protocol":42}]}""").format
+        )
+    }
 }

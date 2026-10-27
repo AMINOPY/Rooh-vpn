@@ -1,6 +1,8 @@
 package com.aminopy.roohvpn.core
 
 import org.json.JSONObject
+import java.nio.ByteBuffer
+import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
 
 /**
@@ -26,7 +28,16 @@ object EngineConfigClassifier {
 
     fun classify(input: ByteArray): ProfileClassification {
         if (input.isEmpty() || input.size > MAX_CONFIG_BYTES) return unknown()
-        val value = input.toString(StandardCharsets.UTF_8).trim()
+        val value = try {
+            StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(ByteBuffer.wrap(input))
+                .toString()
+                .trim()
+        } catch (_: Exception) {
+            return unknown()
+        }
         if (value.isEmpty()) return unknown()
 
         if (value.startsWith("[Interface]", ignoreCase = true) &&
@@ -50,9 +61,9 @@ object EngineConfigClassifier {
             if (outbounds.length() == 0) return unknown()
             val first = outbounds.optJSONObject(0) ?: return unknown()
             when {
-                first.has("protocol") ->
+                first.opt("protocol") is String ->
                     ProfileClassification(ImportedProfileFormat.XRAY_JSON, EngineId.XRAY, true)
-                first.has("type") ->
+                first.opt("type") is String ->
                     ProfileClassification(ImportedProfileFormat.SING_BOX_JSON, EngineId.SING_BOX, true)
                 else -> unknown()
             }
