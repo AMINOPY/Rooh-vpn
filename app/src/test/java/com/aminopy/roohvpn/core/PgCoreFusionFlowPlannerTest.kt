@@ -73,4 +73,51 @@ class PgCoreFusionFlowPlannerTest {
         )
         assertNull(result as? PgCoreFusionFlowPlanner.PlanResult.Planned)
     }
+
+    @Test
+    fun closingLeaseMoreThanOnceDoesNotReleaseAnotherFlowsCapacity() {
+        val planner = PgCoreFusionFlowPlanner()
+        val first = planner.planNewFlow(listOf(path("shared", 15, maxFlows = 2)), 1_000)
+            as PgCoreFusionFlowPlanner.PlanResult.Planned
+        val second = planner.planNewFlow(listOf(path("shared", 15, maxFlows = 2)), 1_000)
+            as PgCoreFusionFlowPlanner.PlanResult.Planned
+
+        first.lease.close()
+        first.lease.close()
+        assertEquals(1, planner.activeReservations("shared"))
+
+        val third = planner.planNewFlow(listOf(path("shared", 15, maxFlows = 2)), 1_000)
+        assertTrue(third is PgCoreFusionFlowPlanner.PlanResult.Planned)
+        assertEquals(2, planner.activeReservations("shared"))
+
+        (third as PgCoreFusionFlowPlanner.PlanResult.Planned).lease.close()
+        second.lease.close()
+        assertEquals(0, planner.activeReservations("shared"))
+    }
+
+    @Test
+    fun invalidCapacityConfigurationIsRejectedWithoutPlanning() {
+        val planner = PgCoreFusionFlowPlanner()
+        val result = planner.planNewFlow(listOf(path("bad", 15, maxFlows = -1)), 1_000)
+
+        assertEquals(
+            PgCoreFusionFlowPlanner.PlanResult.Reason.INVALID_PATH_CONFIGURATION,
+            (result as PgCoreFusionFlowPlanner.PlanResult.Rejected).reason
+        )
+        assertEquals(0, planner.activeReservations("bad"))
+    }
+
+    @Test
+    fun futureDatedMeasurementIsNotTreatedAsFresh() {
+        val planner = PgCoreFusionFlowPlanner()
+        val result = planner.planNewFlow(
+            listOf(path("clock-skewed", 5, measuredAt = 1_001)),
+            nowMillis = 1_000
+        )
+
+        assertEquals(
+            PgCoreFusionFlowPlanner.PlanResult.Reason.NO_PATH_AVAILABLE,
+            (result as PgCoreFusionFlowPlanner.PlanResult.Rejected).reason
+        )
+    }
 }
