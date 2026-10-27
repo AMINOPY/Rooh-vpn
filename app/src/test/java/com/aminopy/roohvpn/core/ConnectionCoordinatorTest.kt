@@ -213,12 +213,39 @@ class ConnectionCoordinatorTest {
         assertNull(firstResult.get())
     }
 
+
+    @Test
+    fun nativeStatusFailureIsRedactedAndTriggersCleanup() {
+        val backend = FakeBackend(throwLinkageErrorOnStatus = true)
+        val coordinator = ConnectionCoordinator(EngineRegistry(listOf(backend)))
+
+        val failure = coordinator.connect(EngineId.XRAY, byteArrayOf(1, 2))
+
+        assertEquals("ENGINE_NATIVE_UNAVAILABLE", failure?.code)
+        assertEquals(1, backend.stopCalls)
+        assertNull(coordinator.activeEngine())
+    }
+
+    @Test
+    fun nativeStopFailureKeepsBackendReserved() {
+        val backend = FakeBackend(throwLinkageErrorOnStop = true)
+        val coordinator = ConnectionCoordinator(EngineRegistry(listOf(backend)))
+
+        assertNull(coordinator.connect(EngineId.XRAY, byteArrayOf(1)))
+        val failure = coordinator.disconnect()
+
+        assertEquals("ENGINE_STOP_FAILED", failure?.code)
+        assertEquals(EngineId.XRAY, coordinator.activeEngine())
+    }
+
     private class FakeBackend(
         private val stateAfterStart: EngineState = EngineState.RUNNING,
         private val statusEngineId: EngineId = EngineId.XRAY,
         private val startFailure: EngineFailure? = null,
         private val throwOnStart: Boolean = false,
         private val throwLinkageErrorOnStart: Boolean = false,
+        private val throwLinkageErrorOnStatus: Boolean = false,
+        private val throwLinkageErrorOnStop: Boolean = false,
         private val stopFailure: EngineFailure? = null
     ) : EngineBackend {
         override val id = EngineId.XRAY
@@ -238,9 +265,13 @@ class ConnectionCoordinatorTest {
             if (throwLinkageErrorOnStart) throw UnsatisfiedLinkError("native library missing")
             return startFailure
         }
-        override fun status() = EngineStatus(statusEngineId, stateAfterStart)
+        override fun status(): EngineStatus {
+            if (throwLinkageErrorOnStatus) throw UnsatisfiedLinkError("native status unavailable")
+            return EngineStatus(statusEngineId, stateAfterStart)
+        }
         override fun stop(): EngineFailure? {
             stopCalls += 1
+            if (throwLinkageErrorOnStop) throw UnsatisfiedLinkError("native stop unavailable")
             return stopFailure
         }
     }
