@@ -1,5 +1,6 @@
 package com.aminopy.roohvpn.core
 
+import android.content.Context
 import io.nekohasekai.libbox.Libbox
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
@@ -8,13 +9,13 @@ import java.nio.charset.StandardCharsets
 /**
  * Native sing-box config validation.
  *
- * The application must initialize libbox with Libbox.setup(...) before calling
- * this validator. Structural preflight remains useful for rejecting oversized
- * and malformed input before passing it to native code.
+ * This initializes libbox before validation, but does not start a tunnel.
+ * Structural preflight rejects oversized and malformed input before native code.
  */
 object SingBoxNativeConfigValidator {
-    fun validate(configuration: ByteArray): EngineFailure? {
+    fun validate(context: Context, configuration: ByteArray): EngineFailure? {
         SingBoxProfilePreflight.validate(configuration)?.let { return it }
+        SingBoxLibboxRuntime.initialize(context)?.let { return it }
 
         val content = try {
             StandardCharsets.UTF_8.newDecoder()
