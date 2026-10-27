@@ -35,19 +35,17 @@ object XrayProfilePreflight {
 
             for (index in 0 until outbounds.length()) {
                 val outbound = outbounds.optJSONObject(index) ?: return invalid()
-                val protocolValue = outbound.opt("protocol")
-                if (protocolValue !is String || protocolValue.isBlank()) return invalid()
-                if (outbound.has("settings") && outbound.isNull("settings")) return invalid()
-                if (outbound.has("settings") && outbound.optJSONObject("settings") == null) {
-                    return invalid()
-                }
+                if (!hasNonBlankString(outbound, "protocol")) return invalid()
+                if (!hasOptionalObject(outbound, "settings")) return invalid()
             }
 
             val inbounds = root.opt("inbounds")
             if (inbounds != null) {
                 if (inbounds !is org.json.JSONArray) return invalid()
                 for (index in 0 until inbounds.length()) {
-                    if (inbounds.optJSONObject(index) == null) return invalid()
+                    val inbound = inbounds.optJSONObject(index) ?: return invalid()
+                    if (!hasNonBlankString(inbound, "protocol")) return invalid()
+                    if (!hasOptionalObject(inbound, "settings")) return invalid()
                 }
             }
 
@@ -65,6 +63,15 @@ object XrayProfilePreflight {
         } catch (_: Exception) {
             invalid()
         }
+    }
+
+    private fun hasNonBlankString(json: JSONObject, key: String): Boolean =
+        json.opt(key) is String && (json.opt(key) as String).isNotBlank()
+
+    private fun hasOptionalObject(json: JSONObject, key: String): Boolean {
+        if (!json.has(key)) return true
+        if (json.isNull(key)) return false
+        return json.optJSONObject(key) != null
     }
 
     private fun invalid() = EngineFailure(
