@@ -24,11 +24,25 @@ jobs:
       - name: Set up Go for PG CORE tests
         uses: actions/setup-go@v5
         with:
-          go-version: "1.26.0"
-          cache-dependency-path: pg-core/go.sum
+          go-version: "1.27.0"
+          cache-dependency-path: |
+            pg-core/go.sum
+            xray-core/go.sum
       - name: Test PG CORE Go engine
         working-directory: pg-core
         run: go test ./...
+      - name: Test Android Xray core source
+        working-directory: xray-core
+        run: go test ./...
+      - name: Build Xray Android AAR
+        working-directory: xray-core
+        run: |
+          set -euo pipefail
+          go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20261011034528-197770444867
+          gomobile init
+          mkdir -p ../app/libs
+          gomobile bind -v -target=android -androidapi 26 -trimpath -ldflags="-s -w -buildid= -checklinkname=0" -o ../app/libs/xray-core.aar ./
+          test -s ../app/libs/xray-core.aar
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
