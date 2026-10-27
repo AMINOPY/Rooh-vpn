@@ -64,7 +64,14 @@ class NetworkRecoveryController(
                         publish(Status.WAITING_FOR_NETWORK)
                         return@execute
                     }
-                    if (!tunnel.isTunnelActive()) return@execute
+                    if (!tunnel.isTunnelActive()) {
+                        // The controller may have been waiting for a network before
+                        // this callback arrived. Do not leave WAITING_FOR_NETWORK as
+                        // the last status: finally would otherwise enqueue an endless
+                        // validation loop on every validated network callback.
+                        publish(Status.IDLE)
+                        return@execute
+                    }
 
                     publish(Status.CHECKING_TUNNEL)
                     if (!hasValidatedNetwork()) {
