@@ -33,3 +33,6 @@ Every backend must expose:
 - exact upstream revision, license notices, checksums, and ABI list.
 
 Do not map a feature to “supported” merely because a core binary supports a protocol. Android routing, DNS, IPv6, profile provisioning, and the UI state must work end to end.
+## Shared lifecycle coordinator
+
+The coordinator reserves one engine during start/stop transitions, zeroes transient configuration buffers, and does not hold its state lock across native lifecycle calls. UI reads of the active engine are lock-free. JVM tests cover slow-start concurrency and reject a second overlapping connection. These safeguards do not replace real-device traffic, DNS, IPv6, leak, or network-handoff tests.
