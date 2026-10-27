@@ -17,14 +17,14 @@ class SingBoxProfilePreflightTest {
     }
 
     @Test fun rejectsMalformedAndMissingOutbounds() {
-        assertEquals("SING_BOX_CONFIG_INVALID", validate("{bad").code)
-        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"inbounds":[]}""").code)
-        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"outbounds":[]}""").code)
+        assertEquals("SING_BOX_CONFIG_INVALID", validate("{bad")?.code)
+        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"inbounds":[]}""")?.code)
+        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"outbounds":[]}""")?.code)
     }
 
     @Test fun rejectsInvalidServerPortAndMissingType() {
-        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"outbounds":[{"type":"vless","server":"example.invalid","server_port":70000}]}""").code)
-        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"outbounds":[{"server":"example.invalid","server_port":443}]}""").code)
+        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"outbounds":[{"type":"vless","server":"example.invalid","server_port":70000}]}""")?.code)
+        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"outbounds":[{"server":"example.invalid","server_port":443}]}""")?.code)
     }
 
     @Test fun rejectsEmptyAndOversizedProfiles() {
