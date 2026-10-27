@@ -2,7 +2,7 @@
 
 The repository pins the AndroidLibXrayLite source in the `xray-core` submodule and CI builds an Android AAR. The AAR is intentionally not added to the app dependency graph yet: the current Xray and sing-box Go-mobile bindings expose duplicate `go.Seq` classes, so bundling both as-is fails Android class checks.
 
-The Android app now has `XrayProfilePreflight`, a bounded structural check for imported Xray JSON. It rejects oversized or invalid UTF-8 input, malformed JSON, absent/empty outbounds, outbounds without a protocol, and invalid optional top-level field types. This is not native Xray validation and does not start a core or establish a VPN.
+The Android app now has `XrayProfilePreflight`, a bounded structural check for imported Xray JSON. It rejects oversized or invalid UTF-8 input, malformed JSON, absent/empty outbounds, outbounds without a protocol, invalid settings types, non-object inbound entries, and malformed routing-rule arrays. Tests also check that errors do not echo profile secrets. This is not native Xray validation and does not start a core or establish a VPN.
 
 ## Remaining before Xray can be registered as available
 

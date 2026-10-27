@@ -75,4 +75,25 @@ class XrayProfilePreflightTest {
     @Test fun acceptsEmptyOptionalInboundArrayAndRoutingObject() {
         assertNull(validate("""{"outbounds":[{"protocol":"freedom"}],"inbounds":[],"routing":{}}"""))
     }
+
+    @Test fun rejectsNonObjectInboundEntriesAndInvalidRoutingRules() {
+        assertEquals(
+            "XRAY_CONFIG_PREFLIGHT_FAILED",
+            validate("""{"outbounds":[{"protocol":"freedom"}],"inbounds":[null]}""")?.code
+        )
+        assertEquals(
+            "XRAY_CONFIG_PREFLIGHT_FAILED",
+            validate("""{"outbounds":[{"protocol":"freedom"}],"routing":{"rules":{}}}""")?.code
+        )
+        assertEquals(
+            "XRAY_CONFIG_PREFLIGHT_FAILED",
+            validate("""{"outbounds":[{"protocol":"freedom"}],"routing":{"rules":[null]}}""")?.code
+        )
+    }
+
+    @Test fun acceptsObjectInboundAndRoutingRuleArray() {
+        assertNull(
+            validate("""{"inbounds":[{"protocol":"socks","port":1080}],"outbounds":[{"protocol":"freedom"}],"routing":{"rules":[]}}""")
+        )
+    }
 }

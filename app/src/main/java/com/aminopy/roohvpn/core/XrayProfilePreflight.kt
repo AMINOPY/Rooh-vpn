@@ -44,9 +44,23 @@ object XrayProfilePreflight {
             }
 
             val inbounds = root.opt("inbounds")
-            if (inbounds != null && inbounds !is org.json.JSONArray) return invalid()
+            if (inbounds != null) {
+                if (inbounds !is org.json.JSONArray) return invalid()
+                for (index in 0 until inbounds.length()) {
+                    if (inbounds.optJSONObject(index) == null) return invalid()
+                }
+            }
+
             val routing = root.opt("routing")
-            if (routing != null && routing !is JSONObject) return invalid()
+            if (routing != null) {
+                if (routing !is JSONObject) return invalid()
+                if (routing.has("rules")) {
+                    val rules = routing.optJSONArray("rules") ?: return invalid()
+                    for (index in 0 until rules.length()) {
+                        if (rules.optJSONObject(index) == null) return invalid()
+                    }
+                }
+            }
             null
         } catch (_: Exception) {
             invalid()
