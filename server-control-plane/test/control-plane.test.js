@@ -97,3 +97,30 @@ test("profile endpoint requires a valid bearer token before provisioning", async
   assert.equal((await response.json()).error, "unauthorized");
   assert.equal(response.headers.get("cache-control"), "no-store");
 });
+
+
+test("bounded JSON reader accepts a response at the byte limit", async () => {
+  const { readBoundedJson } = await import("../src/index.js");
+  const body = JSON.stringify({ ok: true });
+  const response = new Response(body);
+  assert.deepEqual(await readBoundedJson(response, new TextEncoder().encode(body).length), { ok: true });
+});
+
+test("bounded JSON reader rejects oversized responses while streaming", async () => {
+  const { readBoundedJson } = await import("../src/index.js");
+  const response = new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('{"profile":"'));
+      controller.enqueue(new Uint8Array(64).fill(65));
+      controller.enqueue(new TextEncoder().encode('"}'));
+      controller.close();
+    },
+  }));
+  await assert.rejects(() => readBoundedJson(response, 32), /size limit/);
+});
+
+test("bounded JSON reader rejects invalid UTF-8 instead of replacement decoding", async () => {
+  const { readBoundedJson } = await import("../src/index.js");
+  const response = new Response(new Uint8Array([0x7b, 0x22, 0x78, 0x22, 0x3a, 0xff, 0x7d]));
+  await assert.rejects(() => readBoundedJson(response, 64));
+});
