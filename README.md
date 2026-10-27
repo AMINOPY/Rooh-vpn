@@ -4,7 +4,7 @@ RØH VPN is an Android VPN client project focused first on a reliable, testable 
 
 ## Project direction
 
-- **Engine priority:** Xray-core first, then sing-box, Aether, and WireGuard. These are distinct backends, not interchangeable libraries. These are distinct backends, not interchangeable libraries. Each needs its own adapter, lifecycle, capability declaration, native packaging, license review, and tests.
+- **Engine priority:** Xray-core first, then sing-box, Aether, and WireGuard. These are distinct backends, not interchangeable libraries. Each needs its own adapter, lifecycle, capability declaration, native packaging, license review, and tests.
 - **Android tunnel:** Android `VpnService` owns the TUN interface and OS-level routing. An engine process or local proxy alone does not route device traffic.
 - **Simple connection:** one-tap connection requires a legitimate server operator or provider-authorized API. This repo intentionally has no fabricated server addresses or embedded credentials.
 - **Security:** no hard-coded server credentials, private keys, API tokens, or signing secrets. Local saved profile data uses Android Keystore-backed AES-GCM encryption. Logs must redact sensitive values.
@@ -46,4 +46,4 @@ Proton VPN's free service is not a generic public server pool. RØH VPN will not
 
 ## Current status
 
-**Development stage — not a release-ready VPN.** CI passed for the preceding foundation commit. The new WireGuard dependency and adapter must pass the latest CI run before this change is considered build-verified. There is no claim of a working end-to-end tunnel, integrated multi-engine support, or Proton server access.
+**Development stage — not a release-ready VPN.** At commit `80801c693cc52ccd863869795220db9922ad745c`, GitHub Actions passed the Android debug build/unit tests and control-plane tests ([run](https://github.com/AMINOPY/Rooh-vpn/actions/runs/40446414284)). This verifies build and automated tests only—not physical-device packet flow, DNS correctness, leak resistance, or production service availability. WireGuard is the only registered engine adapter; Xray, sing-box, and Aether are not operational backends. The control plane is not deployed and its server directory is empty by default. Do not advertise this branch as a fully working or release-ready VPN until the remaining integration and device-test gates are completed.
