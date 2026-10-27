@@ -39,10 +39,25 @@ class MainActivity : Activity() {
             textSize = 14f
             text = buildString {
                 append("Engine availability (priority order)\n")
-                append("1. Xray-core — not integrated\n")
-                append("2. sing-box — library dependency only; adapter not integrated\n")
-                append("3. Aether — reviewed, not integrated\n")
-                append("4. WireGuard — adapter integrated; real traffic not device-verified")
+                val coordinator = (application as RoohVpnApplication).connectionCoordinator
+                val engines = listOf(
+                    EngineId.XRAY to "Xray-core",
+                    EngineId.SING_BOX to "sing-box",
+                    EngineId.AETHER to "Aether",
+                    EngineId.WIREGUARD to "WireGuard"
+                )
+                engines.forEachIndexed { index, (id, label) ->
+                    val availability = if (coordinator.isEngineAvailable(id)) "backend registered" else "not integrated"
+                    append(index + 1)
+                    append(". ")
+                    append(label)
+                    append(" — ")
+                    append(availability)
+                    if (id == EngineId.WIREGUARD && coordinator.isEngineAvailable(id)) {
+                        append("; end-to-end traffic not device-verified")
+                    }
+                    if (index != engines.lastIndex) append("\\n")
+                }
             }
         }
         importButton = Button(this).apply {
