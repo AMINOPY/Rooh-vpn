@@ -20,6 +20,10 @@ The search also surfaced projects such as [nullGuard](https://github.com/nullata
 
 No verified, compatible, community-operated free WireGuard server directory was identified in this search. That is not evidence that none exists; it means the current evidence is insufficient to add one safely.
 
+## Third-party provider request
+
+The current request asks to consider Proton VPN as a server provider. This repository does not contain a provider-approved integration contract, official API specification, sandbox access, or proof of server-operator authorization. A claim of permission from an open-source source-code author is recorded as user-provided context but does not independently authorize access to the operator's production VPN infrastructure or private provisioning APIs. See [THIRD_PARTY_PROVIDER_INTEGRATION.md](THIRD_PARTY_PROVIDER_INTEGRATION.md). No Proton endpoint, credential, profile, or API is enabled by this research.
+
 ## Excluded from this request
 
 Repositories that primarily publish subscription URLs, proxy share links, or complete client configurations are not server-directory sources for this feature and should not be mistaken for a server inventory.
