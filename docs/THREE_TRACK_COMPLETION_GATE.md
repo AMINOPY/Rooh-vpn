@@ -1,6 +1,6 @@
 # Three-track completion gate
 
-Status date: 2026-10-26  
+Status date: 2026-10-27  
 Branch: `feat/rohvpn-engine-foundation`
 
 This gate keeps the three remaining workstreams coordinated. They can be developed in parallel, but **the release gate is conjunctive**: a green result in one track cannot compensate for an incomplete result in another. A UI state, successful TUN creation, TCP probe, or native-library presence is not proof of a working VPN.
@@ -61,7 +61,7 @@ This gate keeps the three remaining workstreams coordinated. They can be develop
 A candidate directory mirror was reviewed in [PUBLIC_SERVER_DIRECTORY_RESEARCH.md](PUBLIC_SERVER_DIRECTORY_RESEARCH.md). The candidate lists VPN Gate/OpenVPN servers, which the current WireGuard-only client cannot use. WireGuard management projects found during the search are self-hosted control planes, not public free-server pools. No compatible, verified public WireGuard server source was established, so no third-party endpoints are silently enabled or labeled as RØH servers.
 
 ### Current gate
-**NOT PASSED.** The control-plane directory is a scaffold with disabled/empty server records. The client supports importing a user-generated WireGuard profile from a provider such as Proton VPN only where that provider permits third-party clients; this is BYO-profile compatibility, not RØH server infrastructure. No provider endpoints are scraped, hard-coded, or represented as RØH-operated. A real RØH node, deployed provisioner, documented provider authorization/API, deployment environment, and runtime credentials were not supplied to this repository session. Code changes alone cannot create or authorize that infrastructure.
+**NOT PASSED.** The control-plane directory is a scaffold with disabled/empty server records. The user explicitly does not want Proton VPN servers; Proton endpoints, credentials, profiles, APIs, and infrastructure must not be used or added. No external provider is enabled by default. A future provider may be integrated only if the user separately chooses it and supplies documented authorization/API access. No provider endpoints are scraped, hard-coded, or represented as RØH-operated. A real RØH node, deployed provisioner, deployment environment, and runtime credentials were not supplied to this repository session. Code changes alone cannot create or authorize that infrastructure.
 
 ## Shared release decision
 
