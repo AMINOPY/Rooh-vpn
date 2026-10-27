@@ -39,6 +39,14 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
             }
 
             val status = backend.status()
+            if (status.engineId != engineId) {
+                cleanupAfterFailedStart(backend)
+                return@synchronized EngineFailure(
+                    code = "ENGINE_STATUS_MISMATCH",
+                    safeMessage = "The engine returned a status for a different engine.",
+                    retryable = false
+                )
+            }
             if (status.state != EngineState.RUNNING) {
                 cleanupAfterFailedStart(backend)
                 return@synchronized EngineFailure(
