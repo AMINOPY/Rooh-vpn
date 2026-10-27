@@ -120,4 +120,35 @@ class PgCoreFusionFlowPlannerTest {
             (result as PgCoreFusionFlowPlanner.PlanResult.Rejected).reason
         )
     }
+    @Test
+    fun concurrentPlanningNeverOverbooksPathCapacity() {
+        val planner = PgCoreFusionFlowPlanner()
+        val start = java.util.concurrent.CountDownLatch(1)
+        val planned = java.util.concurrent.atomic.AtomicInteger()
+        val leases = java.util.concurrent.ConcurrentLinkedQueue<PgCoreFusionAllocator.Lease>()
+        val threads = (0 until 24).map {
+            Thread {
+                start.await()
+                when (val result = planner.planNewFlow(
+                    listOf(path("shared", 20, maxFlows = 3)),
+                    nowMillis = 1_000
+                )) {
+                    is PgCoreFusionFlowPlanner.PlanResult.Planned -> {
+                        leases.add(result.lease)
+                        planned.incrementAndGet()
+                    }
+                    is PgCoreFusionFlowPlanner.PlanResult.Rejected -> Unit
+                }
+            }.apply { start() }
+        }
+
+        start.countDown()
+        threads.forEach { it.join(2_000) }
+        assertEquals(3, planned.get())
+        assertEquals(3, planner.activeReservations("shared"))
+
+        leases.forEach { it.close() }
+        assertEquals(0, planner.activeReservations("shared"))
+    }
+
 }
