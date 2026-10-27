@@ -5,13 +5,16 @@ on:
     branches: [main, "feat/**"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# Keep each commit's validation result; do not cancel the previous run just
+# because a newer commit is pushed while native Android/Go builds are running.
 concurrency:
-  group: roohvpn-ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: roohvpn-ci-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   android:
