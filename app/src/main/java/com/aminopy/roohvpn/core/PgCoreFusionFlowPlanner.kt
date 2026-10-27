@@ -37,8 +37,14 @@ class PgCoreFusionFlowPlanner(
             }
         }
 
+        // Include reservations already held by this planner. max() avoids
+        // double-counting if caller telemetry already includes those leases.
+        val effectivePaths = paths.map { path ->
+            path.copy(activeFlows = maxOf(path.activeFlows, allocator.activeReservations(path.id)))
+        }
+
         return when (val selection = PgCoreFusionSelector.select(
-            paths = paths,
+            paths = effectivePaths,
             nowMillis = nowMillis,
             maxSampleAgeMillis = maxSampleAgeMillis
         )) {
