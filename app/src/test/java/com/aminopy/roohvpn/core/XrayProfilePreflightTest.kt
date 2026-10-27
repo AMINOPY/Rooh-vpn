@@ -49,4 +49,30 @@ class XrayProfilePreflightTest {
         assertEquals("XRAY_CONFIG_PREFLIGHT_FAILED", failure?.code)
         org.junit.Assert.assertFalse(failure?.safeMessage?.contains("private-secret") == true)
     }
+
+    @Test fun rejectsMalformedUtf8WithoutExposingInput() {
+        val malformed = byteArrayOf(0x7B, 0x22, 0xC3.toByte(), 0x28, 0x22, 0x7D)
+        val failure = XrayProfilePreflight.validate(malformed)
+        assertEquals("XRAY_CONFIG_PREFLIGHT_FAILED", failure?.code)
+        org.junit.Assert.assertFalse(failure?.safeMessage?.contains("C3") == true)
+    }
+
+    @Test fun rejectsInvalidInboundAndNullSettings() {
+        assertEquals(
+            "XRAY_CONFIG_PREFLIGHT_FAILED",
+            validate("""{"outbounds":[{"protocol":"vless","settings":null}]}""")?.code
+        )
+        assertEquals(
+            "XRAY_CONFIG_PREFLIGHT_FAILED",
+            validate("""{"outbounds":[{"protocol":"freedom"}],"inbounds":{}}""")?.code
+        )
+        assertEquals(
+            "XRAY_CONFIG_PREFLIGHT_FAILED",
+            validate("""{"outbounds":[null]}""")?.code
+        )
+    }
+
+    @Test fun acceptsEmptyOptionalInboundArrayAndRoutingObject() {
+        assertNull(validate("""{"outbounds":[{"protocol":"freedom"}],"inbounds":[],"routing":{}}"""))
+    }
 }
