@@ -39,6 +39,7 @@ jobs:
         run: |
           set -euo pipefail
           go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20261011034528-197770444867
+          export PATH="$PATH:$(go env GOPATH)/bin"
           gomobile init
           mkdir -p ../app/libs
           gomobile bind -v -target=android -androidapi 26 -trimpath -ldflags="-s -w -buildid= -checklinkname=0" -o ../app/libs/xray-core.aar ./
@@ -51,7 +52,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platforms;android-36 build-tools;36.0.0'
+          packages: 'platforms;android-36 build-tools;36.0.0 ndk;29.0.14206865'
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
