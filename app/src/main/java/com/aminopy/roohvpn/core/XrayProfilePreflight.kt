@@ -35,8 +35,8 @@ object XrayProfilePreflight {
 
             for (index in 0 until outbounds.length()) {
                 val outbound = outbounds.optJSONObject(index) ?: return invalid()
-                val protocol = outbound.optString("protocol").trim()
-                if (protocol.isEmpty()) return invalid()
+                val protocolValue = outbound.opt("protocol")
+                if (protocolValue !is String || protocolValue.isBlank()) return invalid()
                 if (outbound.has("settings") && outbound.isNull("settings")) return invalid()
                 if (outbound.has("settings") && outbound.optJSONObject("settings") == null) {
                     return invalid()

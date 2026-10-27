@@ -18,10 +18,18 @@ class XrayProfilePreflightTest {
         assertEquals("XRAY_CONFIG_PREFLIGHT_FAILED", validate("""{"outbounds":[]}""")?.code)
     }
 
-    @Test fun rejectsOutboundWithoutProtocolOrWithInvalidSettings() {
+    @Test fun rejectsOutboundWithoutStringProtocolOrWithInvalidSettings() {
         assertEquals(
             "XRAY_CONFIG_PREFLIGHT_FAILED",
             validate("""{"outbounds":[{"settings":{}}]}""")?.code
+        )
+        assertEquals(
+            "XRAY_CONFIG_PREFLIGHT_FAILED",
+            validate("""{"outbounds":[{"protocol":123}]}""")?.code
+        )
+        assertEquals(
+            "XRAY_CONFIG_PREFLIGHT_FAILED",
+            validate("""{"outbounds":[{"protocol":{}}]}""")?.code
         )
         assertEquals(
             "XRAY_CONFIG_PREFLIGHT_FAILED",
