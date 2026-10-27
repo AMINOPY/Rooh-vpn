@@ -2,7 +2,7 @@
 
 This is a design and verification matrix, not a claim that the listed engines are integrated. Actual support must be checked against the exact pinned upstream version and Android build target.
 
-| Capability | Xray-core | Aether | sing-box | WireGuard |
+| Capability | Xray-core | Aether | sing-box | WireGuard | PG CORE |
 |---|---|---|---|---|
 | General role | Proxy/protocol engine | Native engine + app-defined modes | Multi-protocol proxy/VPN engine | WireGuard tunnel protocol |
 | VLESS / VMess / Trojan / Shadowsocks | Depending on upstream protocol support | Via its bundled Xray path, if licensed and integrated | Depends on exact sing-box version/config | No |
@@ -13,9 +13,9 @@ This is a design and verification matrix, not a claim that the listed engines ar
 | Server auto-discovery | Requires a directory/service | Upstream app modes may use upstream services; RØH needs its own authorized integration | Requires a directory/service | Requires peer provisioning/service |
 | One-tap without manual profile | Requires authorized provisioning | Possible only when upstream service modes remain available and legally/technically appropriate | Requires authorized provisioning | Requires valid peer keys/config from an authorized source |
 | Native ABI packaging | Pin and build the chosen Go/native integration | Rust and tunnel native components; inspect upstream build | Pin and build Android-supported native integration | Use supported Android backend/native components |
-| RØH status | Not integrated | Reference review only | Dependency present, backend not integrated | Adapter and consent-driven profile flow added; end-to-end traffic not verified |
+| RØH status | Not integrated | Reference review only | Dependency present, backend not integrated | Adapter and consent-driven profile flow added; end-to-end traffic not verified | Android library pinned as a submodule and Go/Kotlin tests added to CI; native packet-forwarding backend is still fail-closed and not wired into RØH runtime |
 
-## Adapter contract requirements
+## PG CORE inclusion status\n\nPG CORE is pinned as the `pg-core` Git submodule and its Go engine plus Android library module are built/tested by CI. This is source/build integration, not proof of a working VPN tunnel: its Android service intentionally fails closed unless a real packet-forwarding backend is installed. RØH does not register PG CORE as a connectable engine until the JNI/native bridge, TUN-to-engine data path, socket protection, DNS, IPv4/IPv6, and device traffic tests pass.\n\n## Adapter contract requirements
 
 Every backend must expose:
 - unique engine ID and capability metadata;
