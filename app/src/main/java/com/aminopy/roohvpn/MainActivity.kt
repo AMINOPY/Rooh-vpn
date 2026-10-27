@@ -38,10 +38,10 @@ class MainActivity : Activity() {
         engineStatus = TextView(this).apply {
             textSize = 14f
             text = buildString {
-                append("Engine availability (priority order)\\n")
-                append("1. Xray-core — not integrated\\n")
-                append("2. sing-box — library dependency only; adapter not integrated\\n")
-                append("3. Aether — reviewed, not integrated\\n")
+                append("Engine availability (priority order)\n")
+                append("1. Xray-core — not integrated\n")
+                append("2. sing-box — library dependency only; adapter not integrated\n")
+                append("3. Aether — reviewed, not integrated\n")
                 append("4. WireGuard — adapter integrated; real traffic not device-verified")
             }
         }
