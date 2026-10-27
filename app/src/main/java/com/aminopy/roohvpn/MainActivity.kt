@@ -44,7 +44,8 @@ class MainActivity : Activity() {
                     EngineId.XRAY to "Xray-core",
                     EngineId.SING_BOX to "sing-box",
                     EngineId.AETHER to "Aether",
-                    EngineId.WIREGUARD to "WireGuard"
+                    EngineId.WIREGUARD to "WireGuard",
+                    EngineId.PG_CORE to "PG CORE"
                 )
                 engines.forEachIndexed { index, (id, label) ->
                     val availability = if (coordinator.isEngineAvailable(id)) "backend registered" else "not integrated"
