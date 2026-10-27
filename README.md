@@ -4,7 +4,7 @@ RØH VPN is an Android VPN client project focused first on a reliable, testable 
 
 ## Project direction
 
-- **Engine candidates:** Xray-core, Aether, sing-box, and WireGuard. These are distinct backends, not interchangeable libraries. Each needs its own adapter, lifecycle, capability declaration, native packaging, license review, and tests.
+- **Engine priority:** Xray-core first, then sing-box, Aether, and WireGuard. These are distinct backends, not interchangeable libraries. These are distinct backends, not interchangeable libraries. Each needs its own adapter, lifecycle, capability declaration, native packaging, license review, and tests.
 - **Android tunnel:** Android `VpnService` owns the TUN interface and OS-level routing. An engine process or local proxy alone does not route device traffic.
 - **Simple connection:** one-tap connection requires a legitimate server operator or provider-authorized API. This repo intentionally has no fabricated server addresses or embedded credentials.
 - **Security:** no hard-coded server credentials, private keys, API tokens, or signing secrets. Local saved profile data uses Android Keystore-backed AES-GCM encryption. Logs must redact sensitive values.
@@ -31,6 +31,7 @@ RØH VPN is an Android VPN client project focused first on a reliable, testable 
 - [Third-party and licensing policy](docs/THIRD_PARTY_POLICY.md)
 - [Aether integration and signing-key risk review](docs/AETHER_INTEGRATION_REVIEW.md)
 - [Engine capability matrix](docs/ENGINE_CAPABILITY_MATRIX.md)
+- [Multi-engine implementation and acceptance gates](docs/MULTI_ENGINE_IMPLEMENTATION.md)
 - [Hiddify/Proton-inspired capability backlog](docs/FEATURE_PARITY_BACKLOG.md)
 
 ## Integration gates
