@@ -113,6 +113,26 @@ class NetworkRecoveryControllerTest {
     }
 
     @Test
+    fun nativeLinkageFailureReportsRecoveryFailureInsteadOfStickingChecking() {
+        val finished = CountDownLatch(1)
+        val controller = NetworkRecoveryController(
+            tunnel = object : NetworkRecoveryController.TunnelRecoveryPort {
+                override fun isTunnelActive() = true
+                override fun validateTunnelTraffic(): Boolean = throw UnsatisfiedLinkError("native bridge unavailable")
+                override fun reconnect() = false
+            },
+            statusListener = { if (it == NetworkRecoveryController.Status.RECOVERY_FAILED) finished.countDown() }
+        )
+        try {
+            controller.onNetworkStateChanged(NetworkLifecycleMonitor.State.AVAILABLE_VALIDATED)
+            assertTrue(finished.await(2, TimeUnit.SECONDS))
+            assertEquals(NetworkRecoveryController.Status.RECOVERY_FAILED, controller.status())
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
     fun networkLossDuringHealthCheckPreventsReconnect() {
         val checkStarted = CountDownLatch(1)
         val releaseCheck = CountDownLatch(1)
