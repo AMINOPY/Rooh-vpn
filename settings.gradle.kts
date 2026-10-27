@@ -16,4 +16,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "ROH-VPN"
-include(":app")
+include(":app", ":pg-core-android")
+project(":pg-core-android").projectDir = file("pg-core/android")
