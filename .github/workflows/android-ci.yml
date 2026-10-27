@@ -52,71 +52,13 @@ jobs:
           report=app/libs/xray-core-aar-report.txt
           {
             echo "Artifact: xray-core.aar"
-            echo "SHA-256:"
+            echo "SHA-256 checksum:"
             sha256sum "$aar"
-            echo
-            echo "Go-mobile classes in classes.jar:"
-            unzip -p "$aar" classes.jar > /tmp/xray-classes.jar
-            jar tf /tmp/xray-classes.jar | grep -E '(^|/)go/Seq\\.class$|(^|/)go/Universe\\.class        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: 'platforms;android-36 build-tools;36.0.0 ndk;29.0.14206865'
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.14.3"
-      - name: Compile and test PG CORE Android library
-        run: gradle :pg-core-android:testDebugUnitTest
-      - name: Assemble debug APK
-        run: gradle :app:assembleDebug
-      - name: Verify native libraries are packaged
-        shell: bash
-        run: |
-          set -euo pipefail
-          apk=app/build/outputs/apk/debug/app-debug.apk
-          unzip -l "$apk" | tee /tmp/roohvpn-apk-files.txt
-          grep -Eq 'lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^ ]+\.so$' /tmp/roohvpn-apk-files.txt || {
-            echo "No native .so libraries found in APK."
-            exit 1
-          }
-          echo "Native ABI entries packaged in APK:"
-          grep -E 'lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^ ]+\.so$' /tmp/roohvpn-apk-files.txt
-      - name: Record runtime dependency graph
-        run: gradle :app:dependencies --configuration debugRuntimeClasspath
-      - name: Run Android unit tests
-        run: gradle :app:testDebugUnitTest
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: roohvpn-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 7
-
-  control-plane:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: server-control-plane
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: Test control-plane API
-        run: npm test
- || true
-            echo
             echo "AAR size:"
             du -h "$aar"
-          } | tee "$report"
-      - name: Upload standalone Xray AAR for packaging investigation
+          } > "$report"
+          cat "$report"
+      - name: Upload standalone Xray AAR for integration analysis
         uses: actions/upload-artifact@v4
         with:
           name: roohvpn-xray-core-aar
