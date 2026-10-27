@@ -34,8 +34,10 @@ android {
 
 dependencies {
     implementation("com.wireguard.android:tunnel:1.0.20260102")
-    // Generated from the pinned xray-core submodule by Android CI.
-    implementation(files("libs/xray-core.aar"))
+    // Xray source and AAR generation are validated in CI, but the AAR is not
+    // bundled yet because Xray and libbox currently contain duplicate go.Seq
+    // classes. Do not suppress duplicate-class checks or ship an unverified
+    // shared Go runtime; resolve the runtime packaging before enabling it.
     // Upstream Android binding for sing-box. Do not register an engine backend
     // until its TUN lifecycle and end-to-end traffic path are implemented/tested.
     implementation("com.github.singbox-android:libbox:1.14.0")
