@@ -29,16 +29,12 @@ class PgCoreFusionFlowPlanner(
         nowMillis: Long,
         maxSampleAgeMillis: Long = 30_000L
     ): PlanResult {
-        // Configure all supplied paths before selection. The allocator keeps
-        // existing leases if limits are reduced; new reservations fail closed.
         for (path in paths) {
             if (!allocator.configure(path.id, path.maxConcurrentFlows)) {
                 return PlanResult.Rejected(PlanResult.Reason.INVALID_PATH_CONFIGURATION)
             }
         }
 
-        // Include reservations already held by this planner. max() avoids
-        // double-counting if caller telemetry already includes those leases.
         val effectivePaths = paths.map { path ->
             path.copy(activeFlows = maxOf(path.activeFlows, allocator.activeReservations(path.id)))
         }
@@ -48,8 +44,26 @@ class PgCoreFusionFlowPlanner(
             nowMillis = nowMillis,
             maxSampleAgeMillis = maxSampleAgeMillis
         )) {
-            is FusionSelectionResult.Rejected ->
-                PlanResult.Rejected(PlanResult.Reason.NO_PATH_AVAILABLE)
+            is FusionSelectionResult.Rejected -> {
+                // Distinguish "all measured routes are currently full" from
+                // "there is no valid route/measurement at all".
+                val capacityBlocked = paths.any { path ->
+                    val age = nowMillis - path.measuredAtMillis
+                    path.healthy &&
+                        path.rttMillis != null &&
+                        path.packetLossPercent != null &&
+                        age >= 0 && age <= maxSampleAgeMillis &&
+                        path.maxConcurrentFlows > 0 &&
+                        path.activeFlows < path.maxConcurrentFlows &&
+                        allocator.activeReservations(path.id) >= path.maxConcurrentFlows
+                }
+                val reason = if (capacityBlocked) {
+                    PlanResult.Reason.CAPACITY_CHANGED_RETRY
+                } else {
+                    PlanResult.Reason.NO_PATH_AVAILABLE
+                }
+                PlanResult.Rejected(reason)
+            }
 
             is FusionSelectionResult.Selected -> {
                 val lease = allocator.acquire(selection.path.id)
