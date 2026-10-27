@@ -99,6 +99,10 @@ class NetworkRecoveryController(
                     )
                 } catch (_: Exception) {
                     publish(if (hasValidatedNetwork()) Status.RECOVERY_FAILED else Status.WAITING_FOR_NETWORK)
+                } catch (_: LinkageError) {
+                    // Native engine/JNI failures are not Exceptions. Keep the recovery
+                    // worker alive and never leave the UI stuck in CHECKING_TUNNEL.
+                    publish(if (hasValidatedNetwork()) Status.RECOVERY_FAILED else Status.WAITING_FOR_NETWORK)
                 } finally {
                     recoveryQueued.set(false)
                     // If a validated network arrived while this task was finishing,
