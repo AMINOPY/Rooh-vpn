@@ -34,6 +34,13 @@ android {
 
 dependencies {
     implementation("com.wireguard.android:tunnel:1.0.20260102")
+
+    // PG CORE's Android lifecycle/API module is included in the app build.
+    // Its default backend intentionally fails closed until a real packet
+    // forwarding backend is supplied and verified; this dependency alone
+    // must not be treated as a working VPN data plane.
+    implementation(project(":pg-core-android"))
+
     // Xray source and AAR generation are validated in CI, but the AAR is not
     // bundled yet because Xray and libbox currently contain duplicate go.Seq
     // classes. Do not suppress duplicate-class checks or ship an unverified
