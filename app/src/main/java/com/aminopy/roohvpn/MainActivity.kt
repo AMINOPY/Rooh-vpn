@@ -78,17 +78,17 @@ class MainActivity : Activity() {
         }
         sniInput = EditText(this).apply {
             hint = "Optional TLS SNI / REALITY serverName"
-            singleLine = true
+            maxLines = 1
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         }
         cdnIpInput = EditText(this).apply {
             hint = "Optional CDN edge IP (literal IPv4 / IPv6)"
-            singleLine = true
+            maxLines = 1
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         }
         hostInput = EditText(this).apply {
             hint = "Optional HTTP Host / gRPC authority / XHTTP host"
-            singleLine = true
+            maxLines = 1
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         }
         disconnectButton = Button(this).apply {
