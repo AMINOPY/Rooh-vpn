@@ -25,6 +25,20 @@ android {
         jvmTarget = "17"
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
+
+    flavorDimensions += "engine"
+    productFlavors {
+        create("xray") {
+            dimension = "engine"
+        }
+        create("singbox") {
+            dimension = "engine"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -41,14 +55,14 @@ dependencies {
     // must not be treated as a working VPN data plane.
     implementation(project(":pg-core-android"))
 
-    // Xray is the primary engine. CI builds this AAR from the pinned xray-core
-    // submodule before Gradle runs. Its CoreController exposes StartLoop(config, tunFd),
-    // allowing the Android VPN service to hand the TUN descriptor to Xray.
-    // Do not suppress duplicate-class checks: libbox ships a second gomobile
-    // runtime (go.Seq), so sing-box stays compile-only until a supported
-    // shared-runtime or process-isolation strategy is implemented.
-    implementation(files("libs/xray-core.aar"))
-    compileOnly("com.github.singbox-android:libbox:1.14.0")
+    // Xray and sing-box each ship a gomobile runtime with overlapping classes.
+    // Keep runtime selection explicit: the Xray flavor packages Xray, while the
+    // singbox flavor packages libbox. Both APIs remain compile-visible to the
+    // shared source set, but only one Go mobile runtime is shipped per APK.
+    xrayImplementation(files("libs/xray-core.aar"))
+    xrayCompileOnly("com.github.singbox-android:libbox:1.14.0")
+    singboxImplementation("com.github.singbox-android:libbox:1.14.0")
+    singboxCompileOnly(files("libs/xray-core.aar"))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
