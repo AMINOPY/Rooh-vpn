@@ -156,8 +156,12 @@ class WireGuardEngineBackend(context: Context) : EngineBackend {
 
 /** Creates a registry containing only backends actually included in this build. */
 object DefaultEngineRegistry {
-    fun create(context: Context): EngineRegistry =
-        EngineRegistry(listOf(WireGuardEngineBackend(context.applicationContext)))
+    fun create(context: Context): EngineRegistry = EngineRegistry(
+        listOf(
+            XrayEngineBackend(context.applicationContext),
+            WireGuardEngineBackend(context.applicationContext)
+        )
+    )
 }
 
 /** Pure profile parsing boundary so malformed/oversized input can be unit-tested. */
