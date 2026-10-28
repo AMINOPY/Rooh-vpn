@@ -33,35 +33,41 @@ internal object XrayFrontingAutoConnector {
             return failure("FRONTING_DIRECTORY_REJECTED", false)
         }
 
-        val measurements = parsed.candidates
-            .sortedByDescending { it.priority }
-            .take(MAX_PROBES)
-            .map { candidate -> probe(candidate) }
-        val ranked = XrayFrontingDirectory.rank(
-            measurements,
-            System.currentTimeMillis(),
-            System.currentTimeMillis() / 1000L
-        )
-        if (ranked.isEmpty()) return failure("NO_REACHABLE_FRONTING_EDGE", true)
-
-        var lastFailure: EngineFailure? = null
-        for (candidate in ranked) {
-            val result = coordinator.connect(
-                EngineId.XRAY,
-                candidate.profile.copyOf(),
-                EngineLaunchOptions(
-                    xraySni = candidate.sni,
-                    xrayCdnEdgeIp = candidate.cdnEdgeIp,
-                    xrayHostHeader = candidate.hostHeader
-                )
+        try {
+            val measurements = parsed.candidates
+                .sortedByDescending { it.priority }
+                .take(MAX_PROBES)
+                .map { candidate -> probe(candidate) }
+            val ranked = XrayFrontingDirectory.rank(
+                measurements,
+                System.currentTimeMillis(),
+                System.currentTimeMillis() / 1000L
             )
-            if (result == null) return null
-            lastFailure = result
-            // If cleanup was not confirmed, the coordinator deliberately reserves
-            // the engine. Never try another engine over a possibly live TUN.
-            if (coordinator.activeEngine() != null) return result
+            if (ranked.isEmpty()) return failure("NO_REACHABLE_FRONTING_EDGE", true)
+
+            var lastFailure: EngineFailure? = null
+            for (candidate in ranked) {
+                val result = coordinator.connect(
+                    EngineId.XRAY,
+                    candidate.profile.copyOf(),
+                    EngineLaunchOptions(
+                        xraySni = candidate.sni,
+                        xrayCdnEdgeIp = candidate.cdnEdgeIp,
+                        xrayHostHeader = candidate.hostHeader
+                    )
+                )
+                if (result == null) return null
+                lastFailure = result
+                // If cleanup was not confirmed, the coordinator deliberately reserves
+                // the engine. Never try another engine over a possibly live TUN.
+                if (coordinator.activeEngine() != null) return result
+            }
+            return lastFailure ?: failure("FRONTING_CONNECT_FAILED", true)
+        } finally {
+            // Profiles contain client credentials; keep the directory copies only
+            // until the last connection attempt has consumed them.
+            parsed.candidates.forEach { it.profile.fill(0) }
         }
-        return lastFailure ?: failure("FRONTING_CONNECT_FAILED", true)
     }
 
     private fun fetchSignedEnvelope(rawUrl: String): ByteArray? {
