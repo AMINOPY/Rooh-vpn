@@ -33,6 +33,7 @@ class XrayVpnService : VpnService() {
 
     @Volatile private var tun: ParcelFileDescriptor? = null
     @Volatile private var controller: CoreController? = null
+    @Volatile private var starting = false
     @Volatile private var running = false
     @Volatile private var stopping = false
     @Volatile private var destroyed = false
@@ -82,6 +83,7 @@ class XrayVpnService : VpnService() {
             return START_NOT_STICKY
         }
 
+        starting = true
         worker.execute { startTunnel(configuration, transportOverrides, startId) }
         return START_NOT_STICKY
     }
@@ -135,10 +137,12 @@ class XrayVpnService : VpnService() {
             check(!destroyed) { "VPN service was destroyed during startup" }
 
             running = true
+            starting = false
             signalStartFailure(null)
         } catch (_: Exception) {
             configuration.fill(0)
             val cleaned = cleanupFailedStart()
+            starting = false
             signalStartFailure(failure("XRAY_START_FAILED", true))
             if (cleaned) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -147,6 +151,7 @@ class XrayVpnService : VpnService() {
         } catch (_: LinkageError) {
             configuration.fill(0)
             val cleaned = cleanupFailedStart()
+            starting = false
             signalStartFailure(failure("XRAY_NATIVE_UNAVAILABLE", false))
             if (cleaned) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -291,6 +296,7 @@ class XrayVpnService : VpnService() {
         private val lock = Any()
 
         @Volatile private var instance: XrayVpnService? = null
+        @Volatile private var startRequested = false
         @Volatile private var pendingConfiguration: ByteArray? = null
         @Volatile private var pendingTransportOverrides: XrayCdnProfileAdapter.Overrides? = null
         @Volatile private var startLatch: CountDownLatch? = null
@@ -306,10 +312,14 @@ class XrayVpnService : VpnService() {
         ): EngineFailure? {
             val latch: CountDownLatch
             synchronized(lock) {
-                if (instance?.running == true) {
+                val current = instance
+                if (startRequested || current?.running == true || current?.starting == true ||
+                    current?.stopping == true || current?.controller != null || current?.tun != null
+                ) {
                     configuration.fill(0)
-                    return failure("XRAY_ALREADY_RUNNING", false)
+                    return failure("XRAY_ALREADY_ACTIVE", false)
                 }
+                startRequested = true
                 pendingConfiguration?.fill(0)
                 pendingConfiguration = configuration.copyOf()
                 pendingTransportOverrides = if (options.hasXrayTransportOverrides()) {
@@ -359,6 +369,7 @@ class XrayVpnService : VpnService() {
         private fun signalStartFailure(failure: EngineFailure?) {
             synchronized(lock) {
                 startFailure = failure
+                startRequested = false
                 startLatch?.countDown()
                 startLatch = null
             }
