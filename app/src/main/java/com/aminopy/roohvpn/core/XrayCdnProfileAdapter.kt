@@ -47,7 +47,7 @@ internal object XrayCdnProfileAdapter {
             val root = JSONObject(configuration.toString(Charsets.UTF_8))
             val outbounds = root.optJSONArray("outbounds") ?: return Result(null, "MISSING_OUTBOUNDS")
             val proxyIndexes = (0 until outbounds.length()).filter { index ->
-                outbounds.optJSONObject(index)?.optString("protocol")?.lowercase() in proxyProtocols
+                (outbounds.optJSONObject(index)?.optString("protocol")?.lowercase() ?: "") in proxyProtocols
             }
             if (proxyIndexes.size != 1) return Result(null, "AMBIGUOUS_PROXY_OUTBOUND")
             val outbound = outbounds.getJSONObject(proxyIndexes.single())
