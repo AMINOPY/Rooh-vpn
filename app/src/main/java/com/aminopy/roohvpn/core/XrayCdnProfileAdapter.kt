@@ -1,9 +1,7 @@
 package com.aminopy.roohvpn.core
 
-import org.json.JSONArray
 import org.json.JSONObject
 import java.net.IDN
-import java.net.Inet4Address
 import java.net.Inet6Address
 import java.net.InetAddress
 
@@ -65,10 +63,10 @@ internal object XrayCdnProfileAdapter {
                     return Result(null, "CDN_TRANSPORT_UNSUPPORTED")
                 }
                 if (sni == null && host == null) return Result(null, "CDN_REQUIRES_SNI_OR_HOST")
-                if (sni != null) {
-                    stream.optJSONObject("tlsSettings")?.put("serverName", sni)
-                        ?: return Result(null, "MISSING_TLS_SETTINGS")
-                }
+                val effectiveSni = sni ?: host
+                val tls = stream.optJSONObject("tlsSettings")
+                    ?: return Result(null, "MISSING_TLS_SETTINGS")
+                if (effectiveSni != null) tls.put("serverName", effectiveSni)
                 val effectiveHost = host ?: sni
                 if (network == "ws") {
                     val ws = stream.optJSONObject("wsSettings")
@@ -167,7 +165,7 @@ internal object XrayCdnProfileAdapter {
         }
         return try {
             val address = InetAddress.getByName(input)
-            if (address !is Inet6Address || address is Inet4Address) null else address.hostAddress.substringBefore('%')
+            if (address !is Inet6Address) null else address.hostAddress.substringBefore('%')
         } catch (_: Exception) {
             null
         }
