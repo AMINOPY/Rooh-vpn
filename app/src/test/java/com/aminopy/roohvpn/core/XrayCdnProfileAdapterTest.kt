@@ -157,11 +157,12 @@ class XrayCdnProfileAdapterTest {
             multiple, XrayCdnProfileAdapter.Overrides(sni = "cdn.example.com")
         ).errorCode)
 
-        val manyServers = wsProfile().toString(Charsets.UTF_8)
-            .replace(
-                "\"vnext\":[{\"address\":\"origin.example.net\",\"port\":443,\"users\":[{\"id\":\"00000000-0000-0000-0000-000000000001\",\"encryption\":\"none\"}]}]",
-                "\"vnext\":[{\"address\":\"origin.example.net\",\"port\":443,\"users\":[{\"id\":\"x\"}]},{\"address\":\"other.example.net\",\"port\":443,\"users\":[{\"id\":\"y\"}]}]"
-            ).toByteArray()
+        val manyRoot = JSONObject(wsProfile().toString(Charsets.UTF_8))
+        val manyOutbound = manyRoot.getJSONArray("outbounds").getJSONObject(0)
+        manyOutbound.getJSONObject("settings").getJSONArray("vnext")
+            .put(JSONObject().put("address", "other.example.net").put("port", 443)
+                .put("users", org.json.JSONArray().put(JSONObject().put("id", "other"))))
+        val manyServers = manyRoot.toString().toByteArray()
         val manyResult = XrayCdnProfileAdapter.apply(
             manyServers, XrayCdnProfileAdapter.Overrides(sni = "cdn.example.com", cdnEdgeIp = "192.0.2.50")
         )
