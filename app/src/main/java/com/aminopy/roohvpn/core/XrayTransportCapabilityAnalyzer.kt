@@ -61,7 +61,7 @@ internal object XrayTransportCapabilityAnalyzer {
             }
             val settingsKey = if (protocol == "trojan" || protocol == "shadowsocks") "servers" else "vnext"
             val serverList = settings.optJSONArray(settingsKey)
-            val singleServer = serverList?.length() == 1 && serverList.optJSONObject(0) != null
+            val singleServer = serverList != null && serverList.length() == 1 && serverList.optJSONObject(0) != null
             val transportSettingsPresent = when (network) {
                 "ws" -> stream.optJSONObject("wsSettings") != null
                 "grpc" -> stream.optJSONObject("grpcSettings") != null
