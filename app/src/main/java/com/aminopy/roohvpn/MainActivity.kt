@@ -25,8 +25,9 @@ class MainActivity : Activity() {
     private lateinit var disconnectButton: Button
     private val worker: ExecutorService = Executors.newSingleThreadExecutor()
     private var pendingConfiguration: ByteArray? = null
+    private var pendingEngineId: EngineId? = null
     private var operationInProgress = false
-    private var lastStatus = "Import a WireGuard profile from a trusted provider."
+    private var lastStatus = "Import an Xray JSON or WireGuard profile from a trusted provider."
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,7 +55,8 @@ class MainActivity : Activity() {
                     append(label)
                     append(" — ")
                     append(availability)
-                    if (id == EngineId.WIREGUARD && coordinator.isEngineAvailable(id)) {
+                    if ((id == EngineId.WIREGUARD || id == EngineId.XRAY) &&
+                        coordinator.isEngineAvailable(id)) {
                         append("; end-to-end traffic not device-verified")
                     }
                     if (index != engines.lastIndex) append("\n")
@@ -62,7 +64,7 @@ class MainActivity : Activity() {
             }
         }
         importButton = Button(this).apply {
-            text = "Import WireGuard profile"
+            text = "Import Xray / WireGuard profile"
             setOnClickListener { chooseProfile() }
         }
         connectButton = Button(this).apply {
@@ -87,10 +89,10 @@ class MainActivity : Activity() {
         status.text = when {
             operationInProgress -> lastStatus
             active != null -> "Engine active: $active\n$lastStatus"
-            pendingConfiguration != null -> "WireGuard profile is loaded in memory.\n$lastStatus"
+            pendingConfiguration != null -> "${pendingEngineId ?: "Unknown"} profile is loaded in memory.\n$lastStatus"
             else -> lastStatus
         }
-        connectButton.isEnabled = !operationInProgress && pendingConfiguration != null && active == null
+        connectButton.isEnabled = !operationInProgress && pendingConfiguration != null && pendingEngineId != null && active == null
         disconnectButton.isEnabled = !operationInProgress && active != null
         importButton.isEnabled = !operationInProgress && active == null
     }
@@ -121,6 +123,7 @@ class MainActivity : Activity() {
         // A failed replacement import must never leave an older profile connectable.
         pendingConfiguration?.fill(0)
         pendingConfiguration = null
+        pendingEngineId = null
         val uri = data?.data
         if (uri == null) {
             lastStatus = "No profile was selected."
@@ -134,26 +137,47 @@ class MainActivity : Activity() {
             } ?: throw IllegalArgumentException("Could not read profile")
             require(importedBytes!!.isNotEmpty()) { "Profile is empty" }
             val classification = EngineConfigClassifier.classify(importedBytes!!)
-            if (classification.format != ImportedProfileFormat.WIREGUARD) {
-                importedBytes!!.fill(0)
-                importedBytes = null
-                pendingConfiguration?.fill(0)
-                pendingConfiguration = null
-                lastStatus = when (classification.format) {
-                    ImportedProfileFormat.XRAY_JSON ->
-                        "Detected Xray JSON, but the Xray engine is not integrated in this build yet."
-                    ImportedProfileFormat.SING_BOX_JSON ->
-                        "Detected sing-box JSON, but the sing-box engine is not integrated in this build yet."
-                    ImportedProfileFormat.SHARE_LINK ->
-                        "Detected a proxy share link. This build only imports WireGuard profiles; share-link conversion is not available yet."
-                    else -> "Unsupported or unrecognized profile. Select a valid WireGuard wg-quick configuration."
+            when (classification.format) {
+                ImportedProfileFormat.WIREGUARD -> {
+                    pendingEngineId = EngineId.WIREGUARD
+                    lastStatus = "WireGuard profile loaded in memory only; the private key is not saved."
                 }
-                renderState()
-                return
+                ImportedProfileFormat.XRAY_JSON -> {
+                    val failure = com.aminopy.roohvpn.core.XrayProfilePreflight.validate(importedBytes!!)
+                    if (failure != null) {
+                        importedBytes!!.fill(0)
+                        importedBytes = null
+                        lastStatus = "The Xray JSON profile failed structural validation."
+                        renderState()
+                        return
+                    }
+                    pendingEngineId = EngineId.XRAY
+                    lastStatus = "Xray profile loaded in memory only; connection requires a trusted server profile."
+                }
+                ImportedProfileFormat.SING_BOX_JSON -> {
+                    importedBytes!!.fill(0)
+                    importedBytes = null
+                    lastStatus = "Detected sing-box JSON, but its runtime is not enabled in this build."
+                    renderState()
+                    return
+                }
+                ImportedProfileFormat.SHARE_LINK -> {
+                    importedBytes!!.fill(0)
+                    importedBytes = null
+                    lastStatus = "Detected a proxy share link. Share-link conversion is not available yet."
+                    renderState()
+                    return
+                }
+                else -> {
+                    importedBytes!!.fill(0)
+                    importedBytes = null
+                    lastStatus = "Unsupported profile. Select Xray JSON or a valid WireGuard profile."
+                    renderState()
+                    return
+                }
             }
             pendingConfiguration = importedBytes
             importedBytes = null // ownership transferred to pendingConfiguration
-            lastStatus = "WireGuard profile loaded in memory only; this screen does not save the private key."
         } catch (_: Exception) {
             importedBytes?.fill(0)
             lastStatus = "Profile could not be read or exceeds the 64 KiB limit."
@@ -162,7 +186,7 @@ class MainActivity : Activity() {
     }
 
     private fun requestVpnConsentAndConnect() {
-        if (operationInProgress || pendingConfiguration == null) return
+        if (operationInProgress || pendingConfiguration == null || pendingEngineId == null) return
         val consentIntent = VpnService.prepare(this)
         if (consentIntent != null) startActivityForResult(consentIntent, REQUEST_VPN_CONSENT)
         else connectImportedProfile()
@@ -175,11 +199,17 @@ class MainActivity : Activity() {
             return
         }
         operationInProgress = true
-        lastStatus = "Starting WireGuard…"
+        val engine = pendingEngineId ?: run {
+            source.fill(0)
+            operationInProgress = false
+            renderState()
+            return
+        }
+        lastStatus = "Starting $engine…"
         renderState()
         worker.execute {
             val failure = try {
-                (application as RoohVpnApplication).connectionCoordinator.connect(EngineId.WIREGUARD, source)
+                (application as RoohVpnApplication).connectionCoordinator.connect(engine, source)
             } catch (_: Exception) {
                 source.fill(0)
                 EngineFailure("CONNECTION_FAILED", "Could not start the VPN connection.", true)
@@ -187,7 +217,7 @@ class MainActivity : Activity() {
             runOnUiThread {
                 operationInProgress = false
                 lastStatus = if (failure == null) {
-                    "WireGuard reports RUNNING. End-to-end traffic/DNS still requires device testing."
+                    "$engine reports RUNNING. End-to-end traffic/DNS still requires device testing."
                 } else {
                     "Connection failed: ${failure.safeMessage}"
                 }
@@ -199,7 +229,8 @@ class MainActivity : Activity() {
     private fun disconnect() {
         if (operationInProgress) return
         operationInProgress = true
-        lastStatus = "Stopping WireGuard…"
+        val activeEngine = (application as RoohVpnApplication).connectionCoordinator.activeEngine()
+        lastStatus = "Stopping ${activeEngine ?: "VPN"}…"
         renderState()
         worker.execute {
             val failure = try {
@@ -212,6 +243,7 @@ class MainActivity : Activity() {
                 if (failure == null) {
                     pendingConfiguration?.fill(0)
                     pendingConfiguration = null
+                    pendingEngineId = null
                     lastStatus = "Disconnected."
                 } else {
                     lastStatus = "Disconnect not confirmed: ${failure.safeMessage}"
@@ -231,6 +263,6 @@ class MainActivity : Activity() {
     private companion object {
         const val REQUEST_PROFILE = 101
         const val REQUEST_VPN_CONSENT = 102
-        const val MAX_CONFIG_BYTES = 64 * 1024
+        const val MAX_CONFIG_BYTES = 1024 * 1024
     }
 }
