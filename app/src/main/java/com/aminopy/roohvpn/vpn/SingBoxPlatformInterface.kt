@@ -8,8 +8,6 @@ import android.os.Build
 import android.os.Process
 import android.system.OsConstants
 import android.util.Log
-import io.nekohasekai.libbox.AutoRedirectHandler
-import io.nekohasekai.libbox.AutoRedirectSession
 import io.nekohasekai.libbox.BridgeOptions
 import io.nekohasekai.libbox.BridgeSession
 import io.nekohasekai.libbox.ConnectionOwner
@@ -43,6 +41,7 @@ internal class SingBoxPlatformInterface(
     private val monitor = AtomicReference<ConnectivityManager.NetworkCallback?>()
 
     override fun localDNSTransport(): LocalDNSTransport? = null
+    override fun useProcFS(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
     override fun usePlatformAutoDetectInterfaceControl(): Boolean = true
 
     /** Protect each sing-box outbound socket before it is used. */
@@ -75,13 +74,25 @@ internal class SingBoxPlatformInterface(
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val v4Routes = options.inet4RouteAddress
-                while (v4Routes.hasNext()) builder.addRoute(android.net.IpPrefix(v4Routes.next().toIpPrefixString()))
+                while (v4Routes.hasNext()) {
+                    val route = v4Routes.next()
+                    builder.addRoute(android.net.IpPrefix(java.net.InetAddress.getByName(route.address()), route.prefix()))
+                }
                 val v6Routes = options.inet6RouteAddress
-                while (v6Routes.hasNext()) builder.addRoute(android.net.IpPrefix(v6Routes.next().toIpPrefixString()))
+                while (v6Routes.hasNext()) {
+                    val route = v6Routes.next()
+                    builder.addRoute(android.net.IpPrefix(java.net.InetAddress.getByName(route.address()), route.prefix()))
+                }
                 val v4Excludes = options.inet4RouteExcludeAddress
-                while (v4Excludes.hasNext()) builder.excludeRoute(android.net.IpPrefix(v4Excludes.next().toIpPrefixString()))
+                while (v4Excludes.hasNext()) {
+                    val route = v4Excludes.next()
+                    builder.excludeRoute(android.net.IpPrefix(java.net.InetAddress.getByName(route.address()), route.prefix()))
+                }
                 val v6Excludes = options.inet6RouteExcludeAddress
-                while (v6Excludes.hasNext()) builder.excludeRoute(android.net.IpPrefix(v6Excludes.next().toIpPrefixString()))
+                while (v6Excludes.hasNext()) {
+                    val route = v6Excludes.next()
+                    builder.excludeRoute(android.net.IpPrefix(java.net.InetAddress.getByName(route.address()), route.prefix()))
+                }
             } else {
                 val v4Routes = options.inet4RouteRange
                 while (v4Routes.hasNext()) {
@@ -154,7 +165,6 @@ internal class SingBoxPlatformInterface(
         val caps = connectivity.getNetworkCapabilities(network)
         val metered = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) != true
         runCatching { listener.updateDefaultInterface(name, iface.index, metered, false) }
-        runCatching { listener.updateNetworkPath(name) }
     }
 
     override fun getInterfaces(): NetworkInterfaceIterator {
@@ -182,13 +192,13 @@ internal class SingBoxPlatformInterface(
                 else -> Libbox.InterfaceTypeOther
             }
             item.dnsServer = strings(emptyList())
-            item.dnsSearchDomain = strings(emptyList())
             item.gateway = strings(emptyList())
             item.metered = false
             result.add(item)
         }
         return object : NetworkInterfaceIterator {
             private var index = 0
+            override fun len(): Int = result.size - index
             override fun hasNext(): Boolean = index < result.size
             override fun next(): NetworkInterface? = if (hasNext()) result[index++] else null
         }
@@ -213,18 +223,13 @@ internal class SingBoxPlatformInterface(
     override fun tailscaleHostname(): String = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
     override fun usePlatformBridge(): Boolean = false
     override fun createBridge(options: BridgeOptions): BridgeSession = error("Platform bridge is not supported")
-    override fun usePlatformAutoRedirect(): Boolean = false
-    override fun createAutoRedirect(options: ByteArray, handler: AutoRedirectHandler): AutoRedirectSession =
-        error("Platform auto-redirect is not supported")
 
     private fun strings(values: List<String>): StringIterator = object : StringIterator {
         private var index = 0
+        override fun len(): Int = values.size - index
         override fun hasNext(): Boolean = index < values.size
         override fun next(): String = values[index++]
     }
-
-    private fun io.nekohasekai.libbox.Inet4Address.toIpPrefixString(): String = "${address()}/${prefix()}"
-    private fun io.nekohasekai.libbox.Inet6Address.toIpPrefixString(): String = "${address()}/${prefix()}"
 
     private companion object { const val TAG = "RoohVpnSingBox" }
 }
