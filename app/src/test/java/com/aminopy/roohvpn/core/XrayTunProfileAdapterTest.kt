@@ -107,6 +107,33 @@ class XrayTunProfileAdapterTest {
     }
 
     @Test
+    fun rejectsDuplicateOutboundTagsBeforeAddingTunnelGuard() {
+        val input = """
+            {"outbounds":[
+              {"tag":"proxy","protocol":"vless","settings":{"vnext":[{"address":"one.example.net","port":443,"users":[{"id":"1"}]}]}},
+              {"tag":"proxy","protocol":"freedom","settings":{}}
+            ]}
+        """.trimIndent().toByteArray()
+        assertNull(XrayTunProfileAdapter.prepare(input))
+    }
+
+    @Test
+    fun rejectsDuplicateInboundTagsAndReservedTunnelTag() {
+        val duplicate = profile("""
+            [
+              {"tag":"local","protocol":"socks","settings":{"auth":"noauth"}},
+              {"tag":"local","protocol":"http","settings":{}}
+            ]
+        """.trimIndent())
+        assertNull(XrayTunProfileAdapter.prepare(duplicate))
+
+        val reserved = profile("""
+            [{"tag":"roohvpn-tun","protocol":"socks","settings":{"auth":"noauth"}}]
+        """.trimIndent())
+        assertNull(XrayTunProfileAdapter.prepare(reserved))
+    }
+
+    @Test
     fun rejectsProfilesWithoutExactlyOneProxyOutbound() {
         val directOnly = """{"outbounds":[{"tag":"direct","protocol":"freedom","settings":{}}]}""".toByteArray()
         assertNull(XrayTunProfileAdapter.prepare(directOnly))
