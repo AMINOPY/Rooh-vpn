@@ -1,9 +1,8 @@
 package com.aminopy.roohvpn.core
 
-import android.os.Build
-import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.Base64
 import java.security.KeyFactory
 import java.security.Signature
 import java.security.spec.X509EncodedKeySpec
@@ -62,15 +61,14 @@ internal object XrayFrontingDirectory {
         if (envelopeBytes.isEmpty() || envelopeBytes.size > MAX_ENVELOPE_BYTES) {
             return Result(emptyList(), "INVALID_ENVELOPE_SIZE")
         }
-        if (Build.VERSION.SDK_INT < 28) return Result(emptyList(), "ED25519_UNAVAILABLE")
         return try {
             val envelope = JSONObject(envelopeBytes.toString(Charsets.UTF_8))
-            val payloadBytes = Base64.decode(envelope.getString("payload"), Base64.DEFAULT)
-            val signatureBytes = Base64.decode(envelope.getString("signature"), Base64.DEFAULT)
+            val payloadBytes = Base64.getDecoder().decode(envelope.getString("payload"))
+            val signatureBytes = Base64.getDecoder().decode(envelope.getString("signature"))
             if (payloadBytes.isEmpty() || payloadBytes.size > MAX_PAYLOAD_BYTES) {
                 return Result(emptyList(), "INVALID_PAYLOAD_SIZE")
             }
-            val keyBytes = Base64.decode(pinnedEd25519PublicKeyX509Base64, Base64.DEFAULT)
+            val keyBytes = Base64.getDecoder().decode(pinnedEd25519PublicKeyX509Base64)
             val key = KeyFactory.getInstance("Ed25519").generatePublic(X509EncodedKeySpec(keyBytes))
             val verifier = Signature.getInstance("Ed25519")
             verifier.initVerify(key)
