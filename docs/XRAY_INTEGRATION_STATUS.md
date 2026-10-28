@@ -32,4 +32,4 @@ These are source/build integration changes. They are **not yet proof of a safe, 
 
 ## Current release gate
 
-**NOT PASSED until the latest Android CI and real-device traffic tests pass.** The source now contains the direct TUN path and socket-protection bridge, but CI success alone cannot establish real network forwarding or prove that every Xray transport path invokes the protection callback.
+**PARTIALLY PASSED.** CI passed on commit `53324a26da5771cf3027ffc62af75f68dea4cc53`, including Go tests after applying the socket-protection patch, Xray AAR generation, APK assembly, runtime/asset packaging checks, and Android unit tests. The release gate remains **NOT PASSED** until real-device traffic tests establish TCP/UDP/DNS forwarding, IP-family behavior, socket-protection coverage, network recovery and leak resistance. CI success alone cannot prove these properties.
