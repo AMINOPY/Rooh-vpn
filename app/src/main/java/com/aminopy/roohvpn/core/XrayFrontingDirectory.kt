@@ -64,7 +64,9 @@ internal object XrayFrontingDirectory {
         return try {
             val envelope = JSONObject(envelopeBytes.toString(Charsets.UTF_8))
             val payloadBytes = Base64.getDecoder().decode(envelope.getString("payload"))
+            decodedPayloadForZeroing = payloadBytes
             val signatureBytes = Base64.getDecoder().decode(envelope.getString("signature"))
+            decodedSignatureForZeroing = signatureBytes
             if (payloadBytes.isEmpty() || payloadBytes.size > MAX_PAYLOAD_BYTES) {
                 return Result(emptyList(), "INVALID_PAYLOAD_SIZE")
             }
@@ -120,6 +122,9 @@ internal object XrayFrontingDirectory {
             Result(emptyList(), "DIRECTORY_INVALID")
         } catch (_: LinkageError) {
             Result(emptyList(), "CRYPTO_PROVIDER_UNAVAILABLE")
+        } finally {
+            decodedPayloadForZeroing?.fill(0)
+            decodedSignatureForZeroing?.fill(0)
         }
     }
 
