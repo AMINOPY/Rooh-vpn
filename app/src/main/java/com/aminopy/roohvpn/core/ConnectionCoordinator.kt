@@ -15,7 +15,14 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
     @Volatile private var reservedBackend: EngineBackend? = null
     @Volatile private var operationInProgress = false
 
-    fun connect(engineId: EngineId, configuration: ByteArray): EngineFailure? {
+    fun connect(engineId: EngineId, configuration: ByteArray): EngineFailure? =
+        connect(engineId, configuration, EngineLaunchOptions())
+
+    fun connect(
+        engineId: EngineId,
+        configuration: ByteArray,
+        options: EngineLaunchOptions
+    ): EngineFailure? {
         val backend = synchronized(lock) {
             if (operationInProgress || activeBackend != null || reservedBackend != null) {
                 configuration.fill(0)
@@ -41,9 +48,9 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
         }
 
         try {
-            backend.validate(configuration)?.let { return it }
+            backend.validate(configuration, options)?.let { return it }
 
-            backend.start(configuration)?.let { failure ->
+            backend.start(configuration, options)?.let { failure ->
                 cleanupAfterFailedStart(backend)
                 return failure
             }
