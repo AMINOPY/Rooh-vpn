@@ -33,6 +33,7 @@ class XrayVpnService : VpnService() {
     @Volatile private var controller: CoreController? = null
     @Volatile private var running = false
     @Volatile private var stopping = false
+    @Volatile private var destroyed = false
 
     override fun onCreate() {
         super.onCreate()
@@ -92,6 +93,7 @@ class XrayVpnService : VpnService() {
                 .addDnsServer(XrayTunProfileAdapter.IPV6_DNS)
                 .establish() ?: throw IllegalStateException("Android did not establish the VPN TUN")
             tun = descriptor
+            check(!destroyed) { "VPN service was destroyed during startup" }
 
             // AndroidLibXrayLite resolves bundled geoip.dat/geosite.dat through
             // Android assets when the same-named file is not present on disk.
@@ -116,6 +118,7 @@ class XrayVpnService : VpnService() {
             // StartLoop's tunFd contract duplicates this descriptor internally;
             // the original remains owned by this service until StopLoop succeeds.
             core.startLoop(adapted, descriptor.fd)
+            check(!destroyed) { "VPN service was destroyed during startup" }
 
             running = true
             signalStartFailure(null)
@@ -217,6 +220,7 @@ class XrayVpnService : VpnService() {
     }
 
     override fun onDestroy() {
+        destroyed = true
         if (running || controller != null || tun != null) {
             // Do not block the main thread waiting on native shutdown.
             worker.execute { stopTunnel() }
