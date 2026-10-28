@@ -41,13 +41,14 @@ dependencies {
     // must not be treated as a working VPN data plane.
     implementation(project(":pg-core-android"))
 
-    // Xray source and AAR generation are validated in CI, but the AAR is not
-    // bundled yet because Xray and libbox currently contain duplicate go.Seq
-    // classes. Do not suppress duplicate-class checks or ship an unverified
-    // shared Go runtime; resolve the runtime packaging before enabling it.
-    // Upstream Android binding for sing-box. Do not register an engine backend
-    // until its TUN lifecycle and end-to-end traffic path are implemented/tested.
-    implementation("com.github.singbox-android:libbox:1.14.0")
+    // Xray is the primary engine. CI builds this AAR from the pinned xray-core
+    // submodule before Gradle runs. Its CoreController exposes StartLoop(config, tunFd),
+    // allowing the Android VPN service to hand the TUN descriptor to Xray.
+    // Do not suppress duplicate-class checks: libbox ships a second gomobile
+    // runtime (go.Seq), so sing-box stays compile-only until a supported
+    // shared-runtime or process-isolation strategy is implemented.
+    implementation(files("libs/xray-core.aar"))
+    compileOnly("com.github.singbox-android:libbox:1.14.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
