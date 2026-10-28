@@ -61,6 +61,17 @@ class XrayTunProfileAdapterTest {
     }
 
     @Test
+    fun rejectsTlsProfileThatDisablesCertificateValidation() {
+        val input = """
+            {"outbounds":[{"tag":"proxy","protocol":"vless",
+              "settings":{"vnext":[{"address":"origin.example.net","port":443,"users":[{"id":"x"}]}]},
+              "streamSettings":{"network":"tcp","security":"tls",
+                "tlsSettings":{"serverName":"origin.example.net","allowInsecure":true}}}]}
+        """.trimIndent().toByteArray()
+        assertNull(XrayTunProfileAdapter.prepare(input))
+    }
+
+    @Test
     fun rejectsUserSuppliedTunInboundToAvoidDescriptorOwnershipConflict() {
         val input = profile("""[{"protocol":"tun","settings":{}}]""")
         assertNull(XrayTunProfileAdapter.prepare(input))
