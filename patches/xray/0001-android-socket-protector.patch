@@ -1,0 +1,72 @@
+diff --git a/libv2ray_android.go b/libv2ray_android.go
+index 0000000..0000000 100644
+--- a/libv2ray_android.go
++++ b/libv2ray_android.go
+@@
+ import (
+ 	"fmt"
++	"sync"
++	"syscall"
+ 
+ 	corenet "github.com/xtls/xray-core/common/net"
++	"github.com/xtls/xray-core/transport/internet"
+ )
++
++// SocketProtector is implemented by the Android VpnService owner. ProtectSocket
++// must call VpnService.protect(fd) synchronously while fd is valid.
++type SocketProtector interface {
++	ProtectSocket(fd int) bool
++}
++
++var (
++	socketProtectorMu sync.RWMutex
++	socketProtector   SocketProtector
++	socketControllerOnce sync.Once
++	socketControllerErr error
++)
++
++// RegisterSocketProtector installs the Android socket-protection callback used
++// by Xray's default TCP and UDP system dialer. Passing nil disables new dials
++// safely; it does not permit unprotected fallback traffic.
++func RegisterSocketProtector(protector SocketProtector) error {
++	socketProtectorMu.Lock()
++	socketProtector = protector
++	socketProtectorMu.Unlock()
++
++	if protector == nil {
++		return nil
++	}
++
++	socketControllerOnce.Do(func() {
++		socketControllerErr = internet.RegisterDialerController(
++			func(network, address string, raw syscall.RawConn) error {
++				socketProtectorMu.RLock()
++					current := socketProtector
++				socketProtectorMu.RUnlock()
++				if current == nil {
++					return fmt.Errorf("Android socket protection is unavailable")
++				}
++
++				var protected bool
++				if err := raw.Control(func(fd uintptr) {
++					protected = current.ProtectSocket(int(fd))
++				}); err != nil {
++					return fmt.Errorf("Android socket protection callback failed")
++				}
++				if !protected {
++					return fmt.Errorf("Android refused to protect an Xray socket")
++				}
++				return nil
++			},
++		)
++	})
++
++	if socketControllerErr != nil {
++		socketProtectorMu.Lock()
++		socketProtector = nil
++		socketProtectorMu.Unlock()
++	}
++	return socketControllerErr
++}
+ 
+ // ProcessFinder is an interface for Android process finding functionality.
