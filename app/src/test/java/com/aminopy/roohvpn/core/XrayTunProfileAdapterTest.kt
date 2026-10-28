@@ -11,7 +11,9 @@ class XrayTunProfileAdapterTest {
         {
           "inbounds": $inbounds,
           "outbounds": [
-            {"tag":"proxy","protocol":"freedom","settings":{}}
+            {"tag":"proxy","protocol":"vless",
+             "settings":{"vnext":[{"address":"origin.example.net","port":443,"users":[{"id":"x","encryption":"none"}]}]},
+             "streamSettings":{"network":"tcp","security":"tls","tlsSettings":{"serverName":"origin.example.net"}}}
           ]
         }
     """.trimIndent().toByteArray(Charsets.UTF_8)
@@ -27,6 +29,9 @@ class XrayTunProfileAdapterTest {
         assertEquals("tun", tun.getString("protocol"))
         assertEquals(1500, tun.getJSONObject("settings").getInt("MTU"))
         assertEquals("proxy", root.getJSONArray("outbounds").getJSONObject(0).getString("tag"))
+        val rules = root.getJSONObject("routing").getJSONArray("rules")
+        assertEquals(XrayTunProfileAdapter.TUN_TAG, rules.getJSONObject(0).getJSONArray("inboundTag").getString(0))
+        assertEquals("proxy", rules.getJSONObject(0).getString("outboundTag"))
     }
 
     @Test
@@ -77,5 +82,41 @@ class XrayTunProfileAdapterTest {
         assertEquals(XrayTunProfileAdapter.TUN_TAG, inbounds.getJSONObject(0).getString("tag"))
         assertEquals("local", inbounds.getJSONObject(1).getString("tag"))
         assertNotNull(root.getJSONArray("outbounds"))
+        assertEquals(XrayTunProfileAdapter.TUN_TAG,
+            root.getJSONObject("routing").getJSONArray("rules").getJSONObject(0)
+                .getJSONArray("inboundTag").getString(0))
+    }
+
+    @Test
+    fun putsTunnelGuardBeforeExistingRulesAndPreservesTheirOrder() {
+        val input = """
+            {
+              "outbounds":[
+                {"tag":"proxy","protocol":"vless","settings":{"vnext":[{"address":"origin.example.net","port":443,"users":[{"id":"x"}]}]}},
+                {"tag":"direct","protocol":"freedom","settings":{}}
+              ],
+              "routing":{"rules":[{"type":"field","domain":["example.org"],"outboundTag":"direct"}]}
+            }
+        """.trimIndent().toByteArray()
+        val root = JSONObject(XrayTunProfileAdapter.prepare(input)!!)
+        val rules = root.getJSONObject("routing").getJSONArray("rules")
+        assertEquals(2, rules.length())
+        assertEquals("proxy", rules.getJSONObject(0).getString("outboundTag"))
+        assertEquals("direct", rules.getJSONObject(1).getString("outboundTag"))
+        assertEquals("example.org", rules.getJSONObject(1).getJSONArray("domain").getString(0))
+    }
+
+    @Test
+    fun rejectsProfilesWithoutExactlyOneProxyOutbound() {
+        val directOnly = """{"outbounds":[{"tag":"direct","protocol":"freedom","settings":{}}]}""".toByteArray()
+        assertNull(XrayTunProfileAdapter.prepare(directOnly))
+
+        val ambiguous = """
+            {"outbounds":[
+              {"tag":"p1","protocol":"vless","settings":{"vnext":[{"address":"one.example.net","port":443,"users":[{"id":"1"}]}]}},
+              {"tag":"p2","protocol":"vmess","settings":{"vnext":[{"address":"two.example.net","port":443,"users":[{"id":"2"}]}]}}
+            ]}
+        """.trimIndent().toByteArray()
+        assertNull(XrayTunProfileAdapter.prepare(ambiguous))
     }
 }
