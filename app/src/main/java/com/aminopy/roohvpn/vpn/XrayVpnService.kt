@@ -95,10 +95,9 @@ class XrayVpnService : VpnService() {
             val protector = object : SocketProtector {
                 override fun protectSocket(fd: Int): Boolean = protect(fd)
             }
-            val protectFailure = Libv2ray.registerSocketProtector(protector)
-            if (protectFailure != null) {
-                throw IllegalStateException("Xray socket-protection callback registration failed")
-            }
+            // Gomobile maps Go error returns to Java exceptions; any registration
+            // failure is caught below and prevents the core from starting.
+            Libv2ray.registerSocketProtector(protector)
 
             val callbacks = object : CoreCallbackHandler {
                 override fun startup(): Int = 0
@@ -115,43 +114,52 @@ class XrayVpnService : VpnService() {
             signalStartFailure(null)
         } catch (_: Exception) {
             configuration.fill(0)
-            cleanupFailedStart()
+            val cleaned = cleanupFailedStart()
             signalStartFailure(failure("XRAY_START_FAILED", true))
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf(startId)
+            if (cleaned) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf(startId)
+            }
         } catch (_: LinkageError) {
             configuration.fill(0)
-            cleanupFailedStart()
+            val cleaned = cleanupFailedStart()
             signalStartFailure(failure("XRAY_NATIVE_UNAVAILABLE", false))
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf(startId)
+            if (cleaned) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf(startId)
+            }
         }
     }
 
     @Synchronized
-    private fun cleanupFailedStart() {
-        try {
-            controller?.stopLoop()
-        } catch (_: Exception) {
-            // Do not surface native exception text; it may contain config details.
-        } catch (_: LinkageError) {
-            // Keep the user-facing error redacted.
+    private fun cleanupFailedStart(): Boolean {
+        val current = controller
+        if (current != null) {
+            try {
+                current.stopLoop()
+            } catch (_: Exception) {
+                // Retain the service, TUN and protector if shutdown is unconfirmed.
+                return false
+            } catch (_: LinkageError) {
+                return false
+            }
         }
         controller = null
         try {
             Libv2ray.registerSocketProtector(null)
         } catch (_: Exception) {
-            // The callback itself fails closed if no protector is registered.
+            return false
         } catch (_: LinkageError) {
-            // Native binding may not have initialized.
+            return false
         }
         try {
             tun?.close()
         } catch (_: Exception) {
-            // Best-effort cleanup after a failed start.
+            return false
         }
         tun = null
         running = false
+        return true
     }
 
     @Synchronized
