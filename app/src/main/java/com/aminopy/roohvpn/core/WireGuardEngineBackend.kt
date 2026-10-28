@@ -154,14 +154,17 @@ class WireGuardEngineBackend(context: Context) : EngineBackend {
     }
 }
 
-/** Creates a registry containing only backends actually included in this build. */
+/** Creates a registry containing only engines packaged in this APK flavor. */
 object DefaultEngineRegistry {
-    fun create(context: Context): EngineRegistry = EngineRegistry(
-        listOf(
-            XrayEngineBackend(context.applicationContext),
-            WireGuardEngineBackend(context.applicationContext)
-        )
-    )
+    fun create(context: Context): EngineRegistry {
+        val appContext = context.applicationContext
+        val backends = mutableListOf<EngineBackend>(WireGuardEngineBackend(appContext))
+        when (com.aminopy.roohvpn.BuildConfig.FLAVOR) {
+            "singbox" -> backends += SingBoxEngineBackend(appContext)
+            else -> backends += XrayEngineBackend(appContext)
+        }
+        return EngineRegistry(backends)
+    }
 }
 
 /** Pure profile parsing boundary so malformed/oversized input can be unit-tested. */
