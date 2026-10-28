@@ -227,6 +227,9 @@ internal class SingBoxPlatformInterface(
         private var index = 0
         override fun hasNext(): Boolean = index < values.size
         override fun next(): String = values[index++]
+        // libbox 1.14 added len() to StringIterator; return remaining elements,
+        // matching the generated iterator contract without consuming the cursor.
+        override fun len(): Int = values.size - index
     }
 
     private companion object { const val TAG = "RoohVpnSingBox" }
