@@ -227,34 +227,24 @@ class MainActivity : Activity() {
             return
         }
 
-        // The SNI/CDN controls intentionally remain simple until the UI pass.
-        // Transform only Xray profiles and fail closed on invalid combinations.
-        val configurationToConnect = if (engine == EngineId.XRAY) {
-            val sni = sniInput.text.toString().trim().ifEmpty { null }
-            val cdnIp = cdnIpInput.text.toString().trim().ifEmpty { null }
-            val host = hostInput.text.toString().trim().ifEmpty { null }
-            if (sni == null && cdnIp == null && host == null) {
-                source
-            } else {
-                val transformed = com.aminopy.roohvpn.core.XrayCdnProfileAdapter.apply(
-                    source,
-                    com.aminopy.roohvpn.core.XrayCdnProfileAdapter.Overrides(
-                        sni = sni,
-                        cdnEdgeIp = cdnIp,
-                        hostHeader = host
-                    )
-                )
-                if (!transformed.isSuccess) {
-                    source.fill(0)
-                    lastStatus = "SNI/CDN settings rejected: ${transformed.errorCode ?: "invalid profile"}."
-                    renderState()
-                    return
-                }
-                source.fill(0)
-                transformed.configuration!!.toByteArray(Charsets.UTF_8)
-            }
+        val sni = sniInput.text.toString().trim().ifEmpty { null }
+        val cdnIp = cdnIpInput.text.toString().trim().ifEmpty { null }
+        val host = hostInput.text.toString().trim().ifEmpty { null }
+        val hasTransportOverrides = sni != null || cdnIp != null || host != null
+        if (engine != EngineId.XRAY && hasTransportOverrides) {
+            source.fill(0)
+            lastStatus = "SNI/CDN overrides apply only to Xray profiles. Clear these fields for WireGuard."
+            renderState()
+            return
+        }
+        val options = if (engine == EngineId.XRAY) {
+            com.aminopy.roohvpn.core.EngineLaunchOptions(
+                xraySni = sni,
+                xrayCdnEdgeIp = cdnIp,
+                xrayHostHeader = host
+            )
         } else {
-            source
+            com.aminopy.roohvpn.core.EngineLaunchOptions()
         }
 
         operationInProgress = true
@@ -262,9 +252,9 @@ class MainActivity : Activity() {
         renderState()
         worker.execute {
             val failure = try {
-                (application as RoohVpnApplication).connectionCoordinator.connect(engine, configurationToConnect)
+                (application as RoohVpnApplication).connectionCoordinator.connect(engine, source, options)
             } catch (_: Exception) {
-                configurationToConnect.fill(0)
+                source.fill(0)
                 EngineFailure("CONNECTION_FAILED", "Could not start the VPN connection.", true)
             }
             runOnUiThread {
