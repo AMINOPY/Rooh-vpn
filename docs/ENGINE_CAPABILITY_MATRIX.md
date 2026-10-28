@@ -11,7 +11,7 @@ This is a design and verification matrix, not a claim that the listed engines ar
 | DNS routing | Engine and packet path dependent | Upstream mode-dependent | Engine and configuration dependent | Profile-driven DNS configuration; end-to-end behavior still needs device verification | End-to-end path not verified |
 | Per-app routing | Android VPN builder / bridge and engine rules must align | Upstream app implements routing features | Depends on Android integration and config | **Disabled in RØH capability metadata** until RØH exposes and tests allow/deny app rules | Not enabled |
 | Server auto-discovery | Requires a directory/service | Upstream app modes may use upstream services; RØH needs its own authorized integration | Requires a directory/service | Requires peer provisioning/service | Requires an authorized provisioning service |
-| RØH status | Source pinned; Go tests and AAR generation pass in CI. AAR is temporarily not bundled because it duplicates `go.Seq` classes with sing-box. No EngineBackend/TUN path wired. | Reference review only; native components are not integrated into RØH | Dependency builds, but backend/TUN path is not integrated | Adapter and consent-driven profile flow added; end-to-end traffic not verified | Android library pinned and Go/Kotlin tests added to CI; native packet-forwarding backend remains fail-closed and is not wired into RØH runtime |
+| RØH status | Xray AAR is now the primary runtime on the development branch; Android TUN FD service and fail-closed socket-protection callback are implemented in source. CI/device verification is pending. | Reference review only; native components are not integrated into RØH | Binding remains compile-only to avoid duplicate gomobile runtimes; backend is not enabled | Adapter and consent-driven profile flow added; end-to-end traffic not verified | Android library pinned and Go/Kotlin tests added to CI; native packet-forwarding backend remains fail-closed and is not wired into RØH runtime |
 
 ## PG CORE inclusion status
 
@@ -19,7 +19,7 @@ PG CORE is pinned as the `pg-core` Git submodule and its Go engine plus Android 
 
 ## Xray / sing-box packaging blocker
 
-The generated Xray AAR and the sing-box AAR both package classes such as `go.Seq`, causing Android's duplicate-class check to fail when both are included in the same app. The Xray source tests and AAR generation succeed, but the Xray AAR is not added to the app runtime classpath until the shared Go runtime is handled safely. The build must not bypass duplicate-class validation or claim that Xray is usable in-app before this is resolved.
+The generated Xray AAR and the sing-box AAR both package classes such as `go.Seq`, causing Android's duplicate-class check to fail when both are included in the same app. The current development branch packages Xray as the runtime and keeps sing-box compile-only; CI checks that libbox is absent from the runtime classpath. Do not bypass duplicate-class validation. Xray is still not release-ready until the latest Android build and real TUN/socket-protection/traffic tests pass.
 
 ## Adapter contract requirements
 
