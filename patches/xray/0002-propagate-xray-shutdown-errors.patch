@@ -3,7 +3,7 @@ diff --git a/libv2ray_main.go b/libv2ray_main.go
 +++ b/libv2ray_main.go
 @@ -124,13 +124,20 @@
  // StopLoop safely stops the core processing loop and releases resources
- // Thread-safe method that shuts down the Xray core and triggers necessary callbacks
+ // Thread-safe method that shuts down the core instance and triggers necessary callbacks
  func (x *CoreController) StopLoop() error {
  	x.coreMutex.Lock()
  	defer x.coreMutex.Unlock()
