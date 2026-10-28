@@ -10,8 +10,6 @@ on:
 permissions:
   contents: read
 
-# Keep each commit's validation result; do not cancel the previous run just
-# because a newer commit is pushed while native Android/Go builds are running.
 concurrency:
   group: roohvpn-ci-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: false
@@ -24,26 +22,31 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Set up Go for PG CORE tests
+
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: "1.27.0"
           cache-dependency-path: |
             pg-core/go.sum
             xray-core/go.sum
+
       - name: Test PG CORE Go engine
         working-directory: pg-core
         run: go test ./...
-      - name: Test Android Xray core source
+
+      - name: Test pinned Xray source
         working-directory: xray-core
         run: go test ./...
-      - name: Apply RØH Android socket-protection bridge
+
+      - name: Apply Android socket-protection and shutdown patches
         working-directory: xray-core
         run: |
           set -euo pipefail
           git apply ../patches/xray/0001-android-socket-protector.patch
           git apply ../patches/xray/0002-propagate-xray-shutdown-errors.patch
           go test ./...
+
       - name: Build Xray Android AAR
         working-directory: xray-core
         run: |
@@ -54,8 +57,8 @@ jobs:
           mkdir -p ../app/libs
           gomobile bind -v -target=android -androidapi 26 -trimpath -ldflags="-s -w -buildid= -checklinkname=0" -o ../app/libs/xray-core.aar ./
           test -s ../app/libs/xray-core.aar
-      - name: Package pinned Xray routing databases
-        shell: bash
+
+      - name: Package Xray routing databases
         run: |
           set -euo pipefail
           mkdir -p app/src/main/assets
@@ -64,21 +67,18 @@ jobs:
           cp xray-core/assets/geoip.dat app/src/main/assets/geoip.dat
           cp xray-core/assets/geosite.dat app/src/main/assets/geosite.dat
           sha256sum app/src/main/assets/geoip.dat app/src/main/assets/geosite.dat
-      - name: Record Xray AAR packaging metadata
-        shell: bash
+
+      - name: Record Xray AAR metadata
         run: |
           set -euo pipefail
-          aar=app/libs/xray-core.aar
-          report=app/libs/xray-core-aar-report.txt
           {
-            echo "Artifact: xray-core.aar"
-            echo "SHA-256 checksum:"
-            sha256sum "$aar"
-            echo "AAR size:"
-            du -h "$aar"
-          } > "$report"
-          cat "$report"
-      - name: Upload standalone Xray AAR for integration analysis
+            echo "Artifact: app/libs/xray-core.aar"
+            sha256sum app/libs/xray-core.aar
+            du -h app/libs/xray-core.aar
+          } > app/libs/xray-core-aar-report.txt
+          cat app/libs/xray-core-aar-report.txt
+
+      - name: Upload standalone Xray AAR
         uses: actions/upload-artifact@v4
         with:
           name: roohvpn-xray-core-aar
@@ -87,24 +87,30 @@ jobs:
             app/libs/xray-core-aar-report.txt
           if-no-files-found: error
           retention-days: 7
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           packages: 'platforms;android-36 build-tools;36.0.0 ndk;29.0.14206865'
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.14.3"
-      - name: Compile and test PG CORE Android library
+
+      - name: Test PG CORE Android library
         run: gradle :pg-core-android:testDebugUnitTest
-      - name: Assemble Xray and sing-box debug APKs
+
+      - name: Assemble Xray and sing-box APKs
         run: gradle :app:assembleXrayDebug :app:assembleSingboxDebug
-      - name: Verify engine runtimes and native libraries
+
+      - name: Verify engine APK contents
         shell: bash
         run: |
           set -euo pipefail
@@ -112,22 +118,17 @@ jobs:
           singbox_apk=app/build/outputs/apk/singbox/debug/app-singbox-debug.apk
           test -s "$xray_apk"
           test -s "$singbox_apk"
-          unzip -Z1 "$xray_apk" > /tmp/roohvpn-xray-files.txt
-          unzip -Z1 "$singbox_apk" > /tmp/roohvpn-singbox-files.txt
-          grep -Fxq 'lib/arm64-v8a/libgojni.so' /tmp/roohvpn-xray-files.txt || {
-            echo "Xray APK is missing the gomobile runtime."
-            exit 1
-          }
-          grep -Fxq 'lib/arm64-v8a/libbox.so' /tmp/roohvpn-singbox-files.txt || {
-            echo "sing-box APK is missing libbox.so."
-            exit 1
-          }
-          grep -Eq '^lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^/]+\.so
-          grep -Eq '^lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^/]+\.so
-          grep -q 'assets/geoip.dat' /tmp/roohvpn-xray-files.txt
-          grep -q 'assets/geosite.dat' /tmp/roohvpn-xray-files.txt
-          echo "Both engine flavors contain native libraries; Xray flavor includes routing databases."
-      - name: Verify isolated Go mobile runtime dependencies
+          unzip -Z1 "$xray_apk" > /tmp/xray-apk-entries.txt
+          unzip -Z1 "$singbox_apk" > /tmp/singbox-apk-entries.txt
+          grep -Fxq 'lib/arm64-v8a/libgojni.so' /tmp/xray-apk-entries.txt
+          grep -Fxq 'lib/arm64-v8a/libbox.so' /tmp/singbox-apk-entries.txt
+          grep -Eq '^lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^/]+[.]so$' /tmp/xray-apk-entries.txt
+          grep -Eq '^lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^/]+[.]so$' /tmp/singbox-apk-entries.txt
+          grep -Fxq 'assets/geoip.dat' /tmp/xray-apk-entries.txt
+          grep -Fxq 'assets/geosite.dat' /tmp/xray-apk-entries.txt
+          echo "Xray and sing-box native runtime checks passed."
+
+      - name: Verify isolated Go mobile runtimes
         shell: bash
         run: |
           set -euo pipefail
@@ -137,12 +138,12 @@ jobs:
             echo "Xray flavor must not package sing-box libbox."
             exit 1
           fi
-          grep -qi 'com.github.singbox-android:libbox' /tmp/singbox-runtime-deps.txt || {
-            echo "sing-box flavor is missing libbox from its runtime classpath."
-            exit 1
-          }
-      - name: Run Android unit tests for both engine flavors
+          grep -qi 'com.github.singbox-android:libbox' /tmp/singbox-runtime-deps.txt
+          echo "Go mobile runtime isolation checks passed."
+
+      - name: Run Android unit tests
         run: gradle :app:testXrayDebugUnitTest :app:testSingboxDebugUnitTest
+
       - name: Upload Xray debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -150,6 +151,7 @@ jobs:
           path: app/build/outputs/apk/xray/debug/app-xray-debug.apk
           if-no-files-found: error
           retention-days: 7
+
       - name: Upload sing-box debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -166,207 +168,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: Test control-plane API
-        run: npm test
- /tmp/roohvpn-xray-files.txt
-          grep -Eq 'lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^ ]+\.so$' /tmp/roohvpn-singbox-files.txt
-          grep -q 'assets/geoip.dat' /tmp/roohvpn-xray-files.txt
-          grep -q 'assets/geosite.dat' /tmp/roohvpn-xray-files.txt
-          echo "Both engine flavors contain native libraries; Xray flavor includes routing databases."
-      - name: Verify isolated Go mobile runtime dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          gradle :app:dependencies --configuration xrayDebugRuntimeClasspath > /tmp/xray-runtime-deps.txt
-          gradle :app:dependencies --configuration singboxDebugRuntimeClasspath > /tmp/singbox-runtime-deps.txt
-          if grep -qi 'com.github.singbox-android:libbox' /tmp/xray-runtime-deps.txt; then
-            echo "Xray flavor must not package sing-box libbox."
-            exit 1
-          fi
-          grep -qi 'com.github.singbox-android:libbox' /tmp/singbox-runtime-deps.txt || {
-            echo "sing-box flavor is missing libbox from its runtime classpath."
-            exit 1
-          }
-      - name: Run Android unit tests for both engine flavors
-        run: gradle :app:testXrayDebugUnitTest :app:testSingboxDebugUnitTest
-      - name: Upload Xray debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: roohvpn-xray-debug-apk
-          path: app/build/outputs/apk/xray/debug/app-xray-debug.apk
-          if-no-files-found: error
-          retention-days: 7
-      - name: Upload sing-box debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: roohvpn-singbox-debug-apk
-          path: app/build/outputs/apk/singbox/debug/app-singbox-debug.apk
-          if-no-files-found: error
-          retention-days: 7
 
-  control-plane:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: server-control-plane
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Test control-plane API
-        run: npm test
- /tmp/roohvpn-singbox-files.txt
-          grep -q 'assets/geoip.dat' /tmp/roohvpn-xray-files.txt
-          grep -q 'assets/geosite.dat' /tmp/roohvpn-xray-files.txt
-          echo "Both engine flavors contain native libraries; Xray flavor includes routing databases."
-      - name: Verify isolated Go mobile runtime dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          gradle :app:dependencies --configuration xrayDebugRuntimeClasspath > /tmp/xray-runtime-deps.txt
-          gradle :app:dependencies --configuration singboxDebugRuntimeClasspath > /tmp/singbox-runtime-deps.txt
-          if grep -qi 'com.github.singbox-android:libbox' /tmp/xray-runtime-deps.txt; then
-            echo "Xray flavor must not package sing-box libbox."
-            exit 1
-          fi
-          grep -qi 'com.github.singbox-android:libbox' /tmp/singbox-runtime-deps.txt || {
-            echo "sing-box flavor is missing libbox from its runtime classpath."
-            exit 1
-          }
-      - name: Run Android unit tests for both engine flavors
-        run: gradle :app:testXrayDebugUnitTest :app:testSingboxDebugUnitTest
-      - name: Upload Xray debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: roohvpn-xray-debug-apk
-          path: app/build/outputs/apk/xray/debug/app-xray-debug.apk
-          if-no-files-found: error
-          retention-days: 7
-      - name: Upload sing-box debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: roohvpn-singbox-debug-apk
-          path: app/build/outputs/apk/singbox/debug/app-singbox-debug.apk
-          if-no-files-found: error
-          retention-days: 7
 
-  control-plane:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: server-control-plane
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: Test control-plane API
-        run: npm test
- /tmp/roohvpn-xray-files.txt
-          grep -Eq '^lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^/]+\.so
-          grep -q 'assets/geoip.dat' /tmp/roohvpn-xray-files.txt
-          grep -q 'assets/geosite.dat' /tmp/roohvpn-xray-files.txt
-          echo "Both engine flavors contain native libraries; Xray flavor includes routing databases."
-      - name: Verify isolated Go mobile runtime dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          gradle :app:dependencies --configuration xrayDebugRuntimeClasspath > /tmp/xray-runtime-deps.txt
-          gradle :app:dependencies --configuration singboxDebugRuntimeClasspath > /tmp/singbox-runtime-deps.txt
-          if grep -qi 'com.github.singbox-android:libbox' /tmp/xray-runtime-deps.txt; then
-            echo "Xray flavor must not package sing-box libbox."
-            exit 1
-          fi
-          grep -qi 'com.github.singbox-android:libbox' /tmp/singbox-runtime-deps.txt || {
-            echo "sing-box flavor is missing libbox from its runtime classpath."
-            exit 1
-          }
-      - name: Run Android unit tests for both engine flavors
-        run: gradle :app:testXrayDebugUnitTest :app:testSingboxDebugUnitTest
-      - name: Upload Xray debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: roohvpn-xray-debug-apk
-          path: app/build/outputs/apk/xray/debug/app-xray-debug.apk
-          if-no-files-found: error
-          retention-days: 7
-      - name: Upload sing-box debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: roohvpn-singbox-debug-apk
-          path: app/build/outputs/apk/singbox/debug/app-singbox-debug.apk
-          if-no-files-found: error
-          retention-days: 7
-
-  control-plane:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: server-control-plane
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: Test control-plane API
-        run: npm test
- /tmp/roohvpn-singbox-files.txt
-          grep -q 'assets/geoip.dat' /tmp/roohvpn-xray-files.txt
-          grep -q 'assets/geosite.dat' /tmp/roohvpn-xray-files.txt
-          echo "Both engine flavors contain native libraries; Xray flavor includes routing databases."
-      - name: Verify isolated Go mobile runtime dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          gradle :app:dependencies --configuration xrayDebugRuntimeClasspath > /tmp/xray-runtime-deps.txt
-          gradle :app:dependencies --configuration singboxDebugRuntimeClasspath > /tmp/singbox-runtime-deps.txt
-          if grep -qi 'com.github.singbox-android:libbox' /tmp/xray-runtime-deps.txt; then
-            echo "Xray flavor must not package sing-box libbox."
-            exit 1
-          fi
-          grep -qi 'com.github.singbox-android:libbox' /tmp/singbox-runtime-deps.txt || {
-            echo "sing-box flavor is missing libbox from its runtime classpath."
-            exit 1
-          }
-      - name: Run Android unit tests for both engine flavors
-        run: gradle :app:testXrayDebugUnitTest :app:testSingboxDebugUnitTest
-      - name: Upload Xray debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: roohvpn-xray-debug-apk
-          path: app/build/outputs/apk/xray/debug/app-xray-debug.apk
-          if-no-files-found: error
-          retention-days: 7
-      - name: Upload sing-box debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: roohvpn-singbox-debug-apk
-          path: app/build/outputs/apk/singbox/debug/app-singbox-debug.apk
-          if-no-files-found: error
-          retention-days: 7
-
-  control-plane:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: server-control-plane
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
       - name: Test control-plane API
         run: npm test
