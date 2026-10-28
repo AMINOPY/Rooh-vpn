@@ -1,18 +1,14 @@
 diff --git a/libv2ray_main.go b/libv2ray_main.go
 --- a/libv2ray_main.go
 +++ b/libv2ray_main.go
-@@ -104,7 +104,9 @@ func (x *CoreController) StopLoop() error {
- 	defer x.coreMutex.Unlock()
- 
+@@ -104,3 +104,5 @@ func (x *CoreController) StopLoop() error {
  	if x.IsRunning {
 -		x.doShutdown()
 +		if err := x.doShutdown(); err != nil {
 +			return err
 +		}
  		x.CallbackHandler.Shutdown()
- 		x.CallbackHandler.OnEmitStatus(0, "Core stopped")
- 	}
-@@ -130,10 +132,13 @@
+@@ -129,10 +131,13 @@ func (x *CoreController) doShutdown() {
 -func (x *CoreController) doShutdown() {
 +func (x *CoreController) doShutdown() error {
 +	var shutdownErr error
