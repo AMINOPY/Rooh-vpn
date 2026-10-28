@@ -131,7 +131,15 @@ jobs:
             echo "Expected Xray gomobile native runtime was not packaged for arm64-v8a."
             exit 1
           }
-          echo "Xray runtime packaging check passed; libbox is not in debug runtime classpath."
+          grep -q 'assets/geoip.dat' /tmp/roohvpn-apk-files.txt || {
+            echo "Pinned Xray geoip.dat asset is missing from the APK."
+            exit 1
+          }
+          grep -q 'assets/geosite.dat' /tmp/roohvpn-apk-files.txt || {
+            echo "Pinned Xray geosite.dat asset is missing from the APK."
+            exit 1
+          }
+          echo "Xray runtime and routing assets are packaged; libbox is not in debug runtime classpath."
       - name: Run Android unit tests
         run: gradle :app:testDebugUnitTest
       - name: Upload debug APK
