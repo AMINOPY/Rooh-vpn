@@ -48,7 +48,7 @@ class XrayCdnProfileAdapterTest {
 
         assertEquals("192.0.2.10", server.getString("address"))
         assertEquals("front.example.com", stream.getJSONObject("tlsSettings").getString("serverName"))
-        assertEquals("origin.example.net", stream.getJSONObject("wsSettings").getJSONObject("headers").getString("Host"))
+        assertEquals("origin.example.net", stream.getJSONObject("wsSettings").getString("host"))
         assertFalse(stream.getJSONObject("tlsSettings").getBoolean("allowInsecure"))
         assertEquals("/tunnel", stream.getJSONObject("wsSettings").getString("path"))
         assertEquals("00000000-0000-0000-0000-000000000001",
@@ -63,7 +63,7 @@ class XrayCdnProfileAdapterTest {
         assertTrue(result.errorCode ?: "unexpected transform failure", result.isSuccess)
         val stream = JSONObject(result.configuration!!)
             .getJSONArray("outbounds").getJSONObject(0).getJSONObject("streamSettings")
-        assertEquals("cdn.example.com", stream.getJSONObject("wsSettings").getJSONObject("headers").getString("Host"))
+        assertEquals("cdn.example.com", stream.getJSONObject("wsSettings").getString("host"))
     }
 
     @Test fun supportsGrpcAuthorityAndCdnAddress() {
@@ -115,6 +115,56 @@ class XrayCdnProfileAdapterTest {
         assertFalse(stream.getJSONObject("tlsSettings").getBoolean("allowInsecure"))
     }
 
+    @Test fun supportsHttpUpgradeCdnAndUsesNativeHostField() {
+        val input = """
+            {"outbounds":[{"protocol":"vless",
+              "settings":{"vnext":[{"address":"origin.example.net","port":443,"users":[{"id":"x"}]}]},
+              "streamSettings":{"network":"httpupgrade","security":"tls",
+                "httpupgradeSettings":{"path":"/upgrade","headers":{"X-Test":"keep"}},
+                "tlsSettings":{"serverName":"old.example.net","allowInsecure":false}}}]}
+        """.trimIndent().toByteArray()
+        val result = XrayCdnProfileAdapter.apply(
+            input,
+            XrayCdnProfileAdapter.Overrides(
+                sni = "front.example.com",
+                cdnEdgeIp = "2001:db8::10",
+                hostHeader = "origin.example.net"
+            )
+        )
+        assertTrue(result.errorCode ?: "unexpected transform failure", result.isSuccess)
+        val outbound = JSONObject(result.configuration!!).getJSONArray("outbounds").getJSONObject(0)
+        val server = outbound.getJSONObject("settings").getJSONArray("vnext").getJSONObject(0)
+        val stream = outbound.getJSONObject("streamSettings")
+        val upgrade = stream.getJSONObject("httpupgradeSettings")
+        assertEquals("2001:db8:0:0:0:0:0:10", server.getString("address"))
+        assertEquals("front.example.com", stream.getJSONObject("tlsSettings").getString("serverName"))
+        assertEquals("origin.example.net", upgrade.getString("host"))
+        assertEquals("/upgrade", upgrade.getString("path"))
+        assertEquals("keep", upgrade.getJSONObject("headers").getString("X-Test"))
+        assertFalse(stream.getJSONObject("tlsSettings").getBoolean("allowInsecure"))
+    }
+
+    @Test fun supportsLegacySplitHttpSettingsForCdnHostOverride() {
+        val input = """
+            {"outbounds":[{"protocol":"vless",
+              "settings":{"vnext":[{"address":"origin.example.net","port":443,"users":[{"id":"x"}]}]},
+              "streamSettings":{"network":"splithttp","security":"tls",
+                "splithttpSettings":{"path":"/legacy","mode":"packet-up"},
+                "tlsSettings":{"serverName":"old.example.net","allowInsecure":false}}}]}
+        """.trimIndent().toByteArray()
+        val result = XrayCdnProfileAdapter.apply(
+            input,
+            XrayCdnProfileAdapter.Overrides(sni = "front.example.com", cdnEdgeIp = "192.0.2.60", hostHeader = "origin.example.net")
+        )
+        assertTrue(result.errorCode ?: "unexpected transform failure", result.isSuccess)
+        val stream = JSONObject(result.configuration!!).getJSONArray("outbounds")
+            .getJSONObject(0).getJSONObject("streamSettings")
+        val legacy = stream.getJSONObject("splithttpSettings")
+        assertEquals("origin.example.net", legacy.getString("host"))
+        assertEquals("/legacy", legacy.getString("path"))
+        assertEquals("packet-up", legacy.getString("mode"))
+    }
+
     @Test fun defaultsTlsSniToHostWhenOnlyHostAndCdnIpAreProvided() {
         val result = XrayCdnProfileAdapter.apply(
             wsProfile(),
@@ -124,7 +174,7 @@ class XrayCdnProfileAdapterTest {
         val stream = JSONObject(result.configuration!!)
             .getJSONArray("outbounds").getJSONObject(0).getJSONObject("streamSettings")
         assertEquals("origin.example.net", stream.getJSONObject("tlsSettings").getString("serverName"))
-        assertEquals("origin.example.net", stream.getJSONObject("wsSettings").getJSONObject("headers").getString("Host"))
+        assertEquals("origin.example.net", stream.getJSONObject("wsSettings").getString("host"))
     }
 
     @Test fun supportsSniOnlyForTlsWithoutChangingServerAddress() {
