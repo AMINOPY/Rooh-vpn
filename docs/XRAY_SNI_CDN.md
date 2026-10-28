@@ -5,15 +5,16 @@
 RØH's Xray profile preparation layer now accepts explicit transport overrides:
 
 - `sni`: TLS SNI for ordinary TLS profiles, or `realitySettings.serverName` for REALITY profiles.
-- `cdnEdgeIp`: a literal IPv4/IPv6 endpoint address, never a hostname. When set, the adapter currently supports Xray TLS + WebSocket or TLS + gRPC profiles.
-- `hostHeader`: optional HTTP Host for WebSocket or gRPC authority. It can differ from SNI when the CDN/origin is deliberately configured for that pairing.
+- `cdnEdgeIp`: a literal IPv4/IPv6 endpoint address, never a hostname. When set, the adapter supports Xray TLS + WebSocket, TLS + gRPC, and TLS + XHTTP profiles.
+- `hostHeader`: optional HTTP Host for WebSocket, gRPC authority, or XHTTP `host`. It can differ from SNI when the CDN/origin is deliberately configured for that pairing.
+- The connection screen passes these fields into the Xray profile adapter before starting the tunnel. The controls are intentionally minimal; visual redesign is deferred.
 
 The transform is applied before the Android TUN inbound is inserted by `XrayTunProfileAdapter.prepare(configuration, transportOverrides)`. Existing credentials, paths, ports, TLS verification flags, routing rules, and unrelated outbounds are preserved.
 
 ## Important compatibility limits
 
 - This is a profile transformation, not a guarantee that an arbitrary CDN will forward the tunnel. The CDN distribution and origin must explicitly support the chosen hostname/Host/authority and transport.
-- CDN endpoint override is intentionally rejected for REALITY, non-TLS security, unsupported transports, ambiguous multi-proxy profiles, and multi-server outbound layouts.
+- CDN endpoint override is intentionally rejected for REALITY, non-TLS security, unsupported transports, ambiguous multi-proxy profiles, and multi-server outbound layouts. XHTTP uses its own `xhttpSettings.host` field; its `path`, `mode`, and `extra` values are preserved.
 - SNI-only overrides support TLS and REALITY. A Host/authority override without a CDN IP is limited to WebSocket and gRPC.
 - The adapter never turns off certificate validation or enables `allowInsecure`.
 - IP reachability, TCP/TLS handshake, HTTP 101 WebSocket upgrade / gRPC response, authentication, throughput and stability are not inferred from syntactic validity. Those need real network tests against a user-authorized endpoint.
