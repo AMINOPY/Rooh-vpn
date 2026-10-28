@@ -192,7 +192,7 @@ internal object XrayCdnProfileAdapter {
         }
         return try {
             val address = InetAddress.getByName(input)
-            if (address !is Inet6Address) null else address.hostAddress.substringBefore('%')
+            if (address !is Inet6Address) null else address.hostAddress?.substringBefore('%')
         } catch (_: Exception) {
             null
         }
