@@ -39,6 +39,48 @@ class XrayEngineBackend(context: Context) : EngineBackend {
         return XrayVpnService.start(appContext, configuration)
     }
 
+    override fun validate(
+        configuration: ByteArray,
+        options: EngineLaunchOptions
+    ): EngineFailure? {
+        if (!options.hasXrayTransportOverrides()) return validate(configuration)
+        if (XrayProfilePreflight.validate(configuration) != null) return invalidConfiguration()
+
+        val overrides = XrayCdnProfileAdapter.Overrides(
+            sni = options.xraySni,
+            cdnEdgeIp = options.xrayCdnEdgeIp,
+            hostHeader = options.xrayHostHeader
+        )
+        val transformed = XrayCdnProfileAdapter.apply(configuration, overrides)
+        if (!transformed.isSuccess) {
+            return EngineFailure(
+                code = "XRAY_TRANSPORT_OVERRIDE_REJECTED",
+                safeMessage = "The SNI/CDN options are invalid or incompatible with this Xray profile.",
+                retryable = false
+            )
+        }
+        if (XrayTunProfileAdapter.prepare(configuration, overrides) == null) {
+            return EngineFailure(
+                code = "XRAY_TUN_ADAPTATION_FAILED",
+                safeMessage = "This Xray profile cannot be adapted safely to the Android VPN tunnel.",
+                retryable = false
+            )
+        }
+        return null
+    }
+
+    override fun start(
+        configuration: ByteArray,
+        options: EngineLaunchOptions
+    ): EngineFailure? {
+        if (!options.hasXrayTransportOverrides()) return start(configuration)
+        validate(configuration, options)?.let {
+            configuration.fill(0)
+            return it
+        }
+        return XrayVpnService.start(appContext, configuration, options)
+    }
+
     override fun status(): EngineStatus = EngineStatus(
         engineId = id,
         state = if (XrayVpnService.isRunning()) EngineState.RUNNING else EngineState.STOPPED
