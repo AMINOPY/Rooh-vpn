@@ -4,8 +4,10 @@ import android.app.Activity
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
+import android.text.InputType
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.aminopy.roohvpn.core.EngineFailure
@@ -23,6 +25,9 @@ class MainActivity : Activity() {
     private lateinit var importButton: Button
     private lateinit var connectButton: Button
     private lateinit var disconnectButton: Button
+    private lateinit var sniInput: EditText
+    private lateinit var cdnIpInput: EditText
+    private lateinit var hostInput: EditText
     private val worker: ExecutorService = Executors.newSingleThreadExecutor()
     private var pendingConfiguration: ByteArray? = null
     private var pendingEngineId: EngineId? = null
@@ -71,6 +76,21 @@ class MainActivity : Activity() {
             text = "Connect"
             setOnClickListener { requestVpnConsentAndConnect() }
         }
+        sniInput = EditText(this).apply {
+            hint = "Optional TLS SNI / REALITY serverName"
+            singleLine = true
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        }
+        cdnIpInput = EditText(this).apply {
+            hint = "Optional CDN edge IP (literal IPv4 / IPv6)"
+            singleLine = true
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        }
+        hostInput = EditText(this).apply {
+            hint = "Optional HTTP Host / gRPC authority / XHTTP host"
+            singleLine = true
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        }
         disconnectButton = Button(this).apply {
             text = "Disconnect"
             setOnClickListener { disconnect() }
@@ -78,6 +98,9 @@ class MainActivity : Activity() {
         root.addView(status, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         root.addView(engineStatus, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         root.addView(importButton)
+        root.addView(sniInput)
+        root.addView(cdnIpInput)
+        root.addView(hostInput)
         root.addView(connectButton)
         root.addView(disconnectButton)
         setContentView(root)
@@ -198,20 +221,50 @@ class MainActivity : Activity() {
             source.fill(0)
             return
         }
-        operationInProgress = true
         val engine = pendingEngineId ?: run {
             source.fill(0)
-            operationInProgress = false
             renderState()
             return
         }
+
+        // The SNI/CDN controls intentionally remain simple until the UI pass.
+        // Transform only Xray profiles and fail closed on invalid combinations.
+        val configurationToConnect = if (engine == EngineId.XRAY) {
+            val sni = sniInput.text.toString().trim().ifEmpty { null }
+            val cdnIp = cdnIpInput.text.toString().trim().ifEmpty { null }
+            val host = hostInput.text.toString().trim().ifEmpty { null }
+            if (sni == null && cdnIp == null && host == null) {
+                source
+            } else {
+                val transformed = com.aminopy.roohvpn.core.XrayCdnProfileAdapter.apply(
+                    source,
+                    com.aminopy.roohvpn.core.XrayCdnProfileAdapter.Overrides(
+                        sni = sni,
+                        cdnEdgeIp = cdnIp,
+                        hostHeader = host
+                    )
+                )
+                if (!transformed.isSuccess) {
+                    source.fill(0)
+                    lastStatus = "SNI/CDN settings rejected: ${transformed.errorCode ?: "invalid profile"}."
+                    renderState()
+                    return
+                }
+                source.fill(0)
+                transformed.configuration!!.toByteArray(Charsets.UTF_8)
+            }
+        } else {
+            source
+        }
+
+        operationInProgress = true
         lastStatus = "Starting $engine…"
         renderState()
         worker.execute {
             val failure = try {
-                (application as RoohVpnApplication).connectionCoordinator.connect(engine, source)
+                (application as RoohVpnApplication).connectionCoordinator.connect(engine, configurationToConnect)
             } catch (_: Exception) {
-                source.fill(0)
+                configurationToConnect.fill(0)
                 EngineFailure("CONNECTION_FAILED", "Could not start the VPN connection.", true)
             }
             runOnUiThread {
