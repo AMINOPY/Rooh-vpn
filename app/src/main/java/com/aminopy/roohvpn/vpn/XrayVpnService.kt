@@ -52,6 +52,10 @@ class XrayVpnService : VpnService() {
         try {
             startForeground(NOTIFICATION_ID, buildNotification())
         } catch (_: Exception) {
+            synchronized(lock) {
+                pendingConfiguration?.fill(0)
+                pendingConfiguration = null
+            }
             signalStartFailure(failure("XRAY_FOREGROUND_FAILED", false))
             stopSelf(startId)
             return START_NOT_STICKY
@@ -217,6 +221,8 @@ class XrayVpnService : VpnService() {
         worker.shutdown()
         synchronized(lock) {
             if (instance === this) instance = null
+            pendingConfiguration?.fill(0)
+            pendingConfiguration = null
         }
         super.onDestroy()
     }
@@ -248,7 +254,7 @@ class XrayVpnService : VpnService() {
         return builder
             .setSmallIcon(android.R.drawable.stat_sys_warning)
             .setContentTitle("RØH VPN — Xray")
-            .setContentText("VPN tunnel is active")
+            .setContentText(if (running) "VPN tunnel is active" else "Starting VPN tunnel")
             .setContentIntent(openApp)
             .setOngoing(true)
             .build()
@@ -292,6 +298,10 @@ class XrayVpnService : VpnService() {
                     startFailure
                 }
             } catch (_: Exception) {
+                synchronized(lock) {
+                    pendingConfiguration?.fill(0)
+                    pendingConfiguration = null
+                }
                 failure("XRAY_SERVICE_START_FAILED", true)
             } finally {
                 configuration.fill(0)
