@@ -59,7 +59,7 @@ internal object XrayCdnProfileAdapter {
 
             if (edgeIp != null) {
                 if (security != "tls") return Result(null, "CDN_REQUIRES_TLS")
-                if (network != "ws" && network != "grpc" && network != "xhttp") {
+                if (network !in setOf("ws", "grpc", "httpupgrade", "xhttp", "splithttp")) {
                     return Result(null, "CDN_TRANSPORT_UNSUPPORTED")
                 }
                 if (sni == null && host == null) return Result(null, "CDN_REQUIRES_SNI_OR_HOST")
@@ -68,21 +68,32 @@ internal object XrayCdnProfileAdapter {
                     ?: return Result(null, "MISSING_TLS_SETTINGS")
                 if (effectiveSni != null) tls.put("serverName", effectiveSni)
                 val effectiveHost = host ?: sni
-                if (network == "ws") {
-                    val ws = stream.optJSONObject("wsSettings")
-                        ?: return Result(null, "MISSING_WS_SETTINGS")
-                    val headers = ws.optJSONObject("headers") ?: JSONObject().also { ws.put("headers", it) }
-                    if (effectiveHost != null) headers.put("Host", effectiveHost)
-                } else if (network == "grpc") {
-                    val grpc = stream.optJSONObject("grpcSettings")
-                        ?: return Result(null, "MISSING_GRPC_SETTINGS")
-                    if (effectiveHost != null) grpc.put("authority", effectiveHost)
-                } else {
-                    // XHTTP's Host is configured in xhttpSettings.host, not
-                    // headers or grpcSettings.authority. Preserve path/mode/extra.
-                    val xhttp = stream.optJSONObject("xhttpSettings")
-                        ?: return Result(null, "MISSING_XHTTP_SETTINGS")
-                    if (effectiveHost != null) xhttp.put("host", effectiveHost)
+                when (network) {
+                    "ws" -> {
+                        val ws = stream.optJSONObject("wsSettings")
+                            ?: return Result(null, "MISSING_WS_SETTINGS")
+                        // Xray's current schema has a dedicated host field;
+                        // headers.Host is deprecated by the native config parser.
+                        if (effectiveHost != null) ws.put("host", effectiveHost)
+                    }
+                    "grpc" -> {
+                        val grpc = stream.optJSONObject("grpcSettings")
+                            ?: return Result(null, "MISSING_GRPC_SETTINGS")
+                        if (effectiveHost != null) grpc.put("authority", effectiveHost)
+                    }
+                    "httpupgrade" -> {
+                        val upgrade = stream.optJSONObject("httpupgradeSettings")
+                            ?: return Result(null, "MISSING_HTTPUPGRADE_SETTINGS")
+                        if (effectiveHost != null) upgrade.put("host", effectiveHost)
+                    }
+                    "xhttp", "splithttp" -> {
+                        // Current Xray uses xhttpSettings; legacy profiles may
+                        // still carry splithttpSettings. Preserve path/mode/extra.
+                        val xhttp = stream.optJSONObject("xhttpSettings")
+                            ?: stream.optJSONObject("splithttpSettings")
+                            ?: return Result(null, "MISSING_XHTTP_SETTINGS")
+                        if (effectiveHost != null) xhttp.put("host", effectiveHost)
+                    }
                 }
                 if (!replaceSingleServerAddress(settings, outbound.optString("protocol"), edgeIp)) {
                     return Result(null, "UNSUPPORTED_SERVER_LAYOUT")
@@ -108,16 +119,21 @@ internal object XrayCdnProfileAdapter {
                     "ws" -> {
                         val ws = stream.optJSONObject("wsSettings")
                             ?: return Result(null, "MISSING_WS_SETTINGS")
-                        val headers = ws.optJSONObject("headers") ?: JSONObject().also { ws.put("headers", it) }
-                        headers.put("Host", host)
+                        ws.put("host", host)
+                    }
+                    "httpupgrade" -> {
+                        val upgrade = stream.optJSONObject("httpupgradeSettings")
+                            ?: return Result(null, "MISSING_HTTPUPGRADE_SETTINGS")
+                        upgrade.put("host", host)
                     }
                     "grpc" -> {
                         val grpc = stream.optJSONObject("grpcSettings")
                             ?: return Result(null, "MISSING_GRPC_SETTINGS")
                         grpc.put("authority", host)
                     }
-                    "xhttp" -> {
+                    "xhttp", "splithttp" -> {
                         val xhttp = stream.optJSONObject("xhttpSettings")
+                            ?: stream.optJSONObject("splithttpSettings")
                             ?: return Result(null, "MISSING_XHTTP_SETTINGS")
                         xhttp.put("host", host)
                     }
