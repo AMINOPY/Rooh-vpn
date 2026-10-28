@@ -128,11 +128,11 @@ internal object XrayFrontingDirectory {
      * missing/stale RTT as zero and never selects an endpoint based on priority
      * alone when it has not passed the live probe.
      */
-    fun choose(
+    fun rank(
         measurements: List<MeasuredCandidate>,
         nowEpochMillis: Long,
         nowEpochSeconds: Long
-    ): Candidate? = measurements.asSequence()
+    ): List<Candidate> = measurements.asSequence()
         .filter { it.connectable && it.rttMillis in 1..MAX_RTT_MILLIS }
         .filter { it.measuredAtEpochMillis > 0L && nowEpochMillis >= it.measuredAtEpochMillis }
         .filter { nowEpochMillis - it.measuredAtEpochMillis <= MAX_MEASUREMENT_AGE_MILLIS }
@@ -143,7 +143,14 @@ internal object XrayFrontingDirectory {
                 .thenBy { it.candidate.id }
         )
         .map { it.candidate }
-        .firstOrNull()
+        .distinctBy { it.id }
+        .toList()
+
+    fun choose(
+        measurements: List<MeasuredCandidate>,
+        nowEpochMillis: Long,
+        nowEpochSeconds: Long
+    ): Candidate? = rank(measurements, nowEpochMillis, nowEpochSeconds).firstOrNull()
 
     private const val MAX_ENVELOPE_BYTES = 2 * 1024 * 1024
     private const val MAX_PAYLOAD_BYTES = 1536 * 1024
