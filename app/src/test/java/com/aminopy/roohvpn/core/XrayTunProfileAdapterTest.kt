@@ -30,6 +30,32 @@ class XrayTunProfileAdapterTest {
     }
 
     @Test
+    fun appliesSniCdnOverridesBeforeAddingTunInbound() {
+        val input = """
+            {"outbounds":[{"tag":"proxy","protocol":"vless",
+              "settings":{"vnext":[{"address":"origin.example.net","port":443,"users":[{"id":"x"}]}]},
+              "streamSettings":{"network":"ws","security":"tls",
+                "wsSettings":{"path":"/tunnel","headers":{"Host":"origin.example.net"}},
+                "tlsSettings":{"serverName":"origin.example.net","allowInsecure":false}}}]}
+        """.trimIndent().toByteArray()
+        val adapted = XrayTunProfileAdapter.prepare(
+            input,
+            XrayCdnProfileAdapter.Overrides(
+                sni = "front.example.com",
+                cdnEdgeIp = "192.0.2.10",
+                hostHeader = "origin.example.net"
+            )
+        )!!
+        val root = JSONObject(adapted)
+        val inbounds = root.getJSONArray("inbounds")
+        assertEquals(XrayTunProfileAdapter.TUN_TAG, inbounds.getJSONObject(0).getString("tag"))
+        val outbound = root.getJSONArray("outbounds").getJSONObject(0)
+        assertEquals("192.0.2.10", outbound.getJSONObject("settings").getJSONArray("vnext").getJSONObject(0).getString("address"))
+        assertEquals("front.example.com", outbound.getJSONObject("streamSettings").getJSONObject("tlsSettings").getString("serverName"))
+        assertEquals("origin.example.net", outbound.getJSONObject("streamSettings").getJSONObject("wsSettings").getJSONObject("headers").getString("Host"))
+    }
+
+    @Test
     fun rejectsUserSuppliedTunInboundToAvoidDescriptorOwnershipConflict() {
         val input = profile("""[{"protocol":"tun","settings":{}}]""")
         assertNull(XrayTunProfileAdapter.prepare(input))
