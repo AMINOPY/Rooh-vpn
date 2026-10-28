@@ -4,8 +4,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Adapts a normal Xray outbound profile to the pinned Android Xray TUN inbound.
- * The Android VpnService remains the owner of the original TUN descriptor.
+ * Adapts an Xray proxy profile to the pinned Android TUN inbound.
+ * The Android VpnService owns the original TUN descriptor.
  */
 internal object XrayTunProfileAdapter {
     const val TUN_TAG = "roohvpn-tun"
@@ -16,6 +16,8 @@ internal object XrayTunProfileAdapter {
     const val IPV6_PREFIX = 126
     const val IPV4_DNS = "1.1.1.1"
     const val IPV6_DNS = "2606:4700:4700::1111"
+
+    private val proxyProtocols = setOf("vless", "vmess", "trojan", "shadowsocks")
 
     fun prepare(
         configuration: ByteArray,
@@ -32,16 +34,28 @@ internal object XrayTunProfileAdapter {
             val outbounds = root.optJSONArray("outbounds") ?: return null
             if (outbounds.length() == 0) return null
 
-            // Avoid accidentally starting a user-supplied tun inbound against a
-            // descriptor whose lifetime/addresses are owned by another service.
-            val inbounds = root.optJSONArray("inbounds") ?: JSONArray().also {
-                root.put("inbounds", it)
+            // Full-device VPN traffic must not silently fall through to a direct,
+            // blackhole, or unrelated outbound. Require one unambiguous proxy.
+            val proxyOutbounds = (0 until outbounds.length()).mapNotNull { index ->
+                val outbound = outbounds.optJSONObject(index) ?: return null
+                if (outbound.optString("protocol").lowercase() in proxyProtocols) outbound else null
             }
-            for (i in 0 until inbounds.length()) {
-                val inbound = inbounds.optJSONObject(i) ?: return null
-                if (inbound.optString("protocol").equals("tun", ignoreCase = true)) {
+            if (proxyOutbounds.size != 1) return null
+            val proxyOutbound = proxyOutbounds.single()
+            var proxyTag = proxyOutbound.optString("tag").trim()
+            if (proxyTag.isEmpty()) {
+                proxyTag = "roohvpn-proxy"
+                if ((0 until outbounds.length()).any { outbounds.optJSONObject(it)?.optString("tag") == proxyTag }) {
                     return null
                 }
+                proxyOutbound.put("tag", proxyTag)
+            }
+
+            // Do not attach a second TUN to a descriptor owned by another service.
+            val inbounds = root.optJSONArray("inbounds") ?: JSONArray()
+            for (i in 0 until inbounds.length()) {
+                val inbound = inbounds.optJSONObject(i) ?: return null
+                if (inbound.optString("protocol").equals("tun", ignoreCase = true)) return null
             }
 
             val tunSettings = JSONObject()
@@ -57,11 +71,28 @@ internal object XrayTunProfileAdapter {
                 .put("protocol", "tun")
                 .put("settings", tunSettings)
 
-            // Put TUN first so inbound ordering remains deterministic. Existing
-            // user routing rules and outbound tags are preserved unchanged.
-            val updated = JSONArray().put(tunInbound)
-            for (i in 0 until inbounds.length()) updated.put(inbounds.get(i))
-            root.put("inbounds", updated)
+            val updatedInbounds = JSONArray().put(tunInbound)
+            for (i in 0 until inbounds.length()) updatedInbounds.put(inbounds.get(i))
+            root.put("inbounds", updatedInbounds)
+
+            // Highest priority: packets entering the app-owned TUN use the
+            // selected proxy outbound. Existing user rules remain after this
+            // guard, so they cannot accidentally send full-tunnel traffic direct.
+            val routing = root.optJSONObject("routing") ?: JSONObject().also {
+                root.put("routing", it)
+            }
+            val rules = routing.optJSONArray("rules") ?: JSONArray().also {
+                routing.put("rules", it)
+            }
+            val guardedRules = JSONArray().put(
+                JSONObject()
+                    .put("type", "field")
+                    .put("inboundTag", JSONArray().put(TUN_TAG))
+                    .put("outboundTag", proxyTag)
+            )
+            for (i in 0 until rules.length()) guardedRules.put(rules.get(i))
+            routing.put("rules", guardedRules)
+
             root.toString()
         } catch (_: Exception) {
             null
