@@ -114,16 +114,16 @@ jobs:
           test -s "$singbox_apk"
           unzip -l "$xray_apk" > /tmp/roohvpn-xray-files.txt
           unzip -l "$singbox_apk" > /tmp/roohvpn-singbox-files.txt
-          grep -Eq 'lib/arm64-v8a/libgojni\\.so' /tmp/roohvpn-xray-files.txt || {
+          grep -Eq 'lib/arm64-v8a/libgojni\.so' /tmp/roohvpn-xray-files.txt || {
             echo "Xray APK is missing the gomobile runtime."
             exit 1
           }
-          grep -Eq 'lib/arm64-v8a/libbox\\.so' /tmp/roohvpn-singbox-files.txt || {
+          grep -Eq 'lib/arm64-v8a/libbox\.so' /tmp/roohvpn-singbox-files.txt || {
             echo "sing-box APK is missing libbox.so."
             exit 1
           }
-          grep -Eq 'lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^ ]+\\.so$' /tmp/roohvpn-xray-files.txt
-          grep -Eq 'lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^ ]+\\.so$' /tmp/roohvpn-singbox-files.txt
+          grep -Eq 'lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^ ]+\.so$' /tmp/roohvpn-xray-files.txt
+          grep -Eq 'lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^ ]+\.so$' /tmp/roohvpn-singbox-files.txt
           grep -q 'assets/geoip.dat' /tmp/roohvpn-xray-files.txt
           grep -q 'assets/geosite.dat' /tmp/roohvpn-xray-files.txt
           echo "Both engine flavors contain native libraries; Xray flavor includes routing databases."
