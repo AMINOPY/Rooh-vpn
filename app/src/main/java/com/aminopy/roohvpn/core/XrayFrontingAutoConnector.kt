@@ -1,6 +1,8 @@
 package com.aminopy.roohvpn.core
 
 import java.io.ByteArrayOutputStream
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.net.URL
 import javax.net.ssl.HttpsURLConnection
 
@@ -104,26 +106,26 @@ internal object XrayFrontingAutoConnector {
     }
 
     private fun probe(candidate: XrayFrontingDirectory.Candidate): XrayFrontingDirectory.MeasuredCandidate {
+        val startedAt = System.nanoTime()
         val nowMillis = System.currentTimeMillis()
-        // A bare TCP connect is not enough: the endpoint must complete an
-        // authenticated TLS handshake for the requested SNI. Certificate and
-        // hostname verification remain enabled by CdnEndpointProbe.
-        val result = CdnEndpointProbe.probe(
-            CdnEndpointProbe.Candidate(
-                edgeIp = candidate.cdnEdgeIp,
-                sni = candidate.sni,
-                port = CDN_TLS_PORT,
-                hostHeader = candidate.hostHeader
-            ),
-            attempts = TLS_PROBE_ATTEMPTS,
-            timeoutMs = TLS_PROBE_TIMEOUT_MILLIS
-        )
+        val reachable = try {
+            Socket().use { socket ->
+                socket.tcpNoDelay = true
+                socket.connect(
+                    InetSocketAddress(candidate.cdnEdgeIp, CDN_TLS_PORT),
+                    EDGE_CONNECT_TIMEOUT_MILLIS
+                )
+            }
+            true
+        } catch (_: Exception) {
+            false
+        }
+        val elapsedMillis = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(1L)
         return XrayFrontingDirectory.MeasuredCandidate(
             candidate = candidate,
-            rttMillis = result.medianHandshakeMs ?: 0L,
-            measuredAtEpochMillis = result.measuredAtEpochMs,
-            connectable = result.isTlsReachable &&
-                result.successfulSamples >= MIN_SUCCESSFUL_TLS_SAMPLES
+            rttMillis = if (reachable) elapsedMillis else 0L,
+            measuredAtEpochMillis = nowMillis,
+            connectable = reachable
         )
     }
 
@@ -143,7 +145,5 @@ internal object XrayFrontingAutoConnector {
     private const val MAX_ENVELOPE_BYTES = 2 * 1024 * 1024
     private const val CONNECT_TIMEOUT_MILLIS = 4_000
     private const val READ_TIMEOUT_MILLIS = 4_000
-    private const val TLS_PROBE_ATTEMPTS = 2
-    private const val TLS_PROBE_TIMEOUT_MILLIS = 2_500
-    private const val MIN_SUCCESSFUL_TLS_SAMPLES = 1
+    private const val EDGE_CONNECT_TIMEOUT_MILLIS = 1_500
 }
