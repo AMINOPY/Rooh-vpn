@@ -198,7 +198,6 @@ internal class SingBoxPlatformInterface(
         }
         return object : NetworkInterfaceIterator {
             private var index = 0
-            override fun len(): Int = result.size - index
             override fun hasNext(): Boolean = index < result.size
             override fun next(): NetworkInterface? = if (hasNext()) result[index++] else null
         }
@@ -226,7 +225,6 @@ internal class SingBoxPlatformInterface(
 
     private fun strings(values: List<String>): StringIterator = object : StringIterator {
         private var index = 0
-        override fun len(): Int = values.size - index
         override fun hasNext(): Boolean = index < values.size
         override fun next(): String = values[index++]
     }
