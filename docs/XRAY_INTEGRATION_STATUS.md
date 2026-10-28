@@ -1,17 +1,35 @@
-# Xray-core integration status
+# Xray-core Android integration status
 
-The repository pins AndroidLibXrayLite in the `xray-core` submodule. Its `CoreController.StartLoop(configContent, tunFd)` accepts an Android TUN file descriptor, and the pinned Xray core includes an Android TUN implementation that duplicates (rather than owns) the supplied descriptor. CI builds the Xray AAR before Gradle and the app now declares that AAR as the primary engine runtime. The sing-box libbox binding is compile-only because the two gomobile runtimes expose duplicate `go.Seq` classes; the CI runtime check rejects packaging libbox alongside Xray. This removes the immediate packaging conflict but does not by itself make Xray operational.
+The repository pins AndroidLibXrayLite in the `xray-core` submodule. The pinned binding exposes `CoreController.StartLoop(configContent, tunFd)`, and its Android TUN implementation duplicates the supplied descriptor internally while leaving the original owned by the application. This supports a direct Xray-to-Android-TUN path; a SOCKS-to-TUN bridge is not required for this pinned TUN inbound.
 
-The Android app now has `XrayProfilePreflight`, a bounded structural check for imported Xray JSON. It rejects oversized or invalid UTF-8 input, malformed JSON, absent/empty outbounds, outbounds without a protocol, invalid settings types, non-object inbound entries, and malformed routing-rule arrays. Tests also check that errors do not echo profile secrets. This is not native Xray validation and does not start a core or establish a VPN.
+## Changes now staged on `feat/rohvpn-engine-foundation`
 
-## Remaining before Xray can be registered as available
+- CI builds the Xray AAR from the pinned submodule before Gradle and packages the pinned `geoip.dat` / `geosite.dat` databases as Android assets.
+- The Xray AAR is declared as the primary runtime. The sing-box `libbox` AAR is compile-only to avoid packaging two gomobile runtimes that both expose duplicate `go.Seq` classes. CI checks the runtime dependency graph and native library packaging.
+- A reproducible patch adds a `SocketProtector` callback to AndroidLibXrayLite and registers it with Xray's default TCP/UDP system dialer. A socket is rejected if `VpnService.protect(fd)` returns false; no unprotected fallback is allowed. CI applies the patch to the pinned submodule and runs the Go tests before building the AAR.
+- `XrayTunProfileAdapter` validates an imported JSON profile, rejects a profile that already contains a TUN inbound owned elsewhere, and adds a controlled TUN inbound while preserving existing outbounds and routing rules.
+- `XrayVpnService` owns the Android TUN descriptor and foreground lifecycle, hands the descriptor to `CoreController.StartLoop`, and retains resources if shutdown cannot be confirmed.
+- `XrayEngineBackend` is registered with the common coordinator; profile import selects Xray for Xray JSON and WireGuard for wg-quick profiles.
 
-- Implement an Android `VpnService` owner that establishes addresses/routes/DNS/MTU, hands the TUN descriptor to `CoreController.StartLoop`, and deterministically closes both the Xray controller and the app-owned descriptor.
-- Add a supported socket-protection path for Xray outbound sockets. The current pinned binding does not expose a `VpnService.protect(fd)` callback; do not enable the TUN path until Xray sockets are guaranteed not to loop back into the VPN.
-- Integrate the actual `libv2ray.CoreController` lifecycle and callbacks through a narrow Android adapter, including startup/stop confirmation and rollback.
-- Handle VPN consent, revocation, network changes, startup failures and deterministic shutdown.
-- Verify the exact Xray TUN inbound configuration schema against the pinned core and reject unsupported profiles before starting.
-- Add native Xray configuration validation after the binding is safely packaged.
-- Test TCP, UDP, DNS, IPv4/IPv6, network handoff, socket protection and leak prevention on emulator/device.
+These are source/build integration changes. They are **not yet proof of a safe, working end-to-end tunnel**.
 
-Do not register `EngineId.XRAY` as available until packaging, lifecycle, real traffic forwarding and tests pass. A structural preflight or successful AAR build is not evidence that a working VPN tunnel exists.
+## Required before Xray can be called complete
+
+1. Confirm the latest branch compiles against the generated gomobile API and that the AAR/runtime packaging checks pass.
+2. Audit all outbound paths in the pinned Xray revision. The callback currently hooks the default system dialer; custom dialers or protocol-specific socket paths must not bypass Android socket protection.
+3. Verify the exact TUN inbound settings and routing behavior against the pinned Xray version, including UDP and DNS packet handling.
+4. Exercise start/stop, failed startup rollback, VPN revocation, process death, and Wi-Fi/mobile handover on emulator and physical Android devices.
+5. Record real HTTP(S) egress, TCP/UDP traffic, DNS success and leak checks, IPv4/IPv6 behavior, MTU behavior, and socket-protection evidence.
+6. Do not claim a kill switch or leak-free operation until those tests pass.
+
+## Security behavior
+
+- The app validates imported Xray JSON before starting native code; structural preflight is not a substitute for Xray's own native config parser.
+- The TUN descriptor remains owned by the service and is closed only after `StopLoop` is confirmed.
+- If Xray cannot confirm shutdown, the coordinator must keep the backend reserved and the service must retain the descriptor/protector rather than silently starting another engine.
+- Socket protection failure is fatal for the affected dial. No unprotected connection fallback is permitted.
+- Xray profiles are held in memory only by the current import screen. No server endpoint, credential, or provider account is fabricated by this client.
+
+## Current release gate
+
+**NOT PASSED until the latest Android CI and real-device traffic tests pass.** The source now contains the direct TUN path and socket-protection bridge, but CI success alone cannot establish real network forwarding or prove that every Xray transport path invokes the protection callback.
