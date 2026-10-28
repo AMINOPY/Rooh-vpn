@@ -1,8 +1,9 @@
 diff --git a/libv2ray_android.go b/libv2ray_android.go
-index 0000000..0000000 100644
 --- a/libv2ray_android.go
 +++ b/libv2ray_android.go
-@@
+@@ -1,8 +1,57 @@
+ package libv2ray
+ 
  import (
  	"fmt"
 +	"sync"
@@ -11,7 +12,7 @@ index 0000000..0000000 100644
  	corenet "github.com/xtls/xray-core/common/net"
 +	"github.com/xtls/xray-core/transport/internet"
  )
-+
+ 
 +// SocketProtector is implemented by the Android VpnService owner. ProtectSocket
 +// must call VpnService.protect(fd) synchronously while fd is valid.
 +type SocketProtector interface {
@@ -19,10 +20,10 @@ index 0000000..0000000 100644
 +}
 +
 +var (
-+	socketProtectorMu sync.RWMutex
-+	socketProtector   SocketProtector
-+	socketControllerOnce sync.Once
-+	socketControllerErr error
++	socketProtectorMu      sync.RWMutex
++	socketProtector        SocketProtector
++	socketControllerOnce   sync.Once
++	socketControllerErr    error
 +)
 +
 +// RegisterSocketProtector installs the Android socket-protection callback used
@@ -41,7 +42,7 @@ index 0000000..0000000 100644
 +		socketControllerErr = internet.RegisterDialerController(
 +			func(network, address string, raw syscall.RawConn) error {
 +				socketProtectorMu.RLock()
-+					current := socketProtector
++				current := socketProtector
 +				socketProtectorMu.RUnlock()
 +				if current == nil {
 +					return fmt.Errorf("Android socket protection is unavailable")
@@ -68,5 +69,5 @@ index 0000000..0000000 100644
 +	}
 +	return socketControllerErr
 +}
- 
++
  // ProcessFinder is an interface for Android process finding functionality.
