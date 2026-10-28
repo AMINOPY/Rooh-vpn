@@ -87,7 +87,7 @@ class MainActivity : Activity() {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         }
         hostInput = EditText(this).apply {
-            hint = "Optional HTTP Host / gRPC authority / XHTTP host"
+            hint = "Optional HTTP Host / gRPC authority / XHTTP or HTTPUpgrade host"
             maxLines = 1
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         }
