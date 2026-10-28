@@ -23,7 +23,7 @@
              Android still permits only one active VPN per user/profile. -->
         <service
             android:name=".vpn.XrayVpnService"
-            android:exported="false"
+            android:exported="true"
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:foregroundServiceType="specialUse">
             <intent-filter>
