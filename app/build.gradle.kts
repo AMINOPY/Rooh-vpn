@@ -59,10 +59,10 @@ dependencies {
     // Keep runtime selection explicit: the Xray flavor packages Xray, while the
     // singbox flavor packages libbox. Both APIs remain compile-visible to the
     // shared source set, but only one Go mobile runtime is shipped per APK.
-    xrayImplementation(files("libs/xray-core.aar"))
-    xrayCompileOnly("com.github.singbox-android:libbox:1.14.0")
-    singboxImplementation("com.github.singbox-android:libbox:1.14.0")
-    singboxCompileOnly(files("libs/xray-core.aar"))
+    add("xrayImplementation", files("libs/xray-core.aar"))
+    add("xrayCompileOnly", "com.github.singbox-android:libbox:1.14.0")
+    add("singboxImplementation", "com.github.singbox-android:libbox:1.14.0")
+    add("singboxCompileOnly", files("libs/xray-core.aar"))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
