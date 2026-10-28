@@ -13,6 +13,15 @@ The repository pins AndroidLibXrayLite in the `xray-core` submodule. The pinned 
 
 These are source/build integration changes. They are **not yet proof of a safe, working end-to-end tunnel**.
 
+## SNI/CDN transport groundwork
+
+- `XrayCdnProfileAdapter` applies explicit TLS SNI, CDN edge-IP and HTTP Host/authority overrides to a single supported proxy outbound. It supports TLS with WebSocket, gRPC, HTTPUpgrade and XHTTP/SplitHTTP settings when the profile contains the required native settings.
+- `XrayTransportCapabilityAnalyzer` reports structural compatibility before the options are presented in UI. It distinguishes SNI support from CDN edge-IP support and emits stable, non-secret limitation codes.
+- `XrayTunProfileAdapter` applies transport overrides before adding the Android TUN inbound and its top-priority proxy route, so existing route rules cannot silently send packets from the app-owned tunnel to a direct outbound.
+- TLS certificate verification remains enabled; profiles with `allowInsecure=true` are rejected by the tunnel adapter. No DNS/network probing or claim of CDN reachability is performed by the analyzer.
+
+Important protocol distinction: SNI selects the TLS name sent in ClientHello, while HTTP Host/gRPC authority selects the application-layer host. A CDN edge IP alone does not make an origin reachable; the edge must route the selected host/path to an origin configured for the same protocol and credentials. Reality's `serverName` is supported as an SNI override, but this adapter intentionally does not treat a Reality endpoint as a generic TLS-CDN edge override.
+
 ## Required before Xray can be called complete
 
 1. Confirm the latest branch compiles against the generated gomobile API and that the AAR/runtime packaging checks pass.
