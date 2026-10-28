@@ -37,6 +37,12 @@ jobs:
       - name: Test Android Xray core source
         working-directory: xray-core
         run: go test ./...
+      - name: Apply RØH Android socket-protection bridge
+        working-directory: xray-core
+        run: |
+          set -euo pipefail
+          git apply ../patches/xray/0001-android-socket-protector.patch
+          go test ./...
       - name: Build Xray Android AAR
         working-directory: xray-core
         run: |
