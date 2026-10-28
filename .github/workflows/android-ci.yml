@@ -101,6 +101,21 @@ jobs:
           grep -E 'lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^ ]+\.so$' /tmp/roohvpn-apk-files.txt
       - name: Record runtime dependency graph
         run: gradle :app:dependencies --configuration debugRuntimeClasspath
+      - name: Verify Xray runtime and prevent duplicate gomobile runtimes
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle :app:dependencies --configuration debugRuntimeClasspath > /tmp/roohvpn-runtime-deps.txt
+          if grep -qi 'com.github.singbox-android:libbox' /tmp/roohvpn-runtime-deps.txt; then
+            echo "sing-box libbox must not be packaged with the current Xray gomobile AAR."
+            exit 1
+          fi
+          unzip -l app/build/outputs/apk/debug/app-debug.apk > /tmp/roohvpn-apk-files.txt
+          grep -q 'lib/arm64-v8a/libgojni.so' /tmp/roohvpn-apk-files.txt || {
+            echo "Expected Xray gomobile native runtime was not packaged for arm64-v8a."
+            exit 1
+          }
+          echo "Xray runtime packaging check passed; libbox is not in debug runtime classpath."
       - name: Run Android unit tests
         run: gradle :app:testDebugUnitTest
       - name: Upload debug APK
