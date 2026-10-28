@@ -73,15 +73,15 @@ internal object XraySniCdnProfileAdapter {
     }
 
     private fun valid(options: Options): Boolean =
-        validHost(options.edgeAddress) &&
-            validHost(options.sni) &&
-            validHost(options.hostHeader) &&
+        validEdgeAddress(options.edgeAddress) &&
+            validDomain(options.sni) &&
+            validDomain(options.hostHeader) &&
             options.port in 1..65535 &&
             options.websocketPath.length in 1..2048 &&
             options.websocketPath.startsWith("/") &&
             options.websocketPath.none { it == '\r' || it == '\n' || it == '\u0000' }
 
-    private fun validHost(value: String): Boolean {
+    private fun validEdgeAddress(value: String): Boolean {
         if (value.isBlank() || value.length > 253 || value.any { it.isWhitespace() }) return false
         if (value.startsWith("[") || value.endsWith("]")) return false
         if (value.contains(':')) {
@@ -90,8 +90,13 @@ internal object XraySniCdnProfileAdapter {
                 value.count { it == ':' } >= 2
         }
         if (value.matches(Regex("(\\d{1,3}\\.){3}\\d{1,3}"))) {
-            return value.split('.').all { it.toIntOrNull() in 0..255 }
+            return value.split('.').all { octet -> octet.toIntOrNull()?.let { it in 0..255 } == true }
         }
+        return validDomain(value)
+    }
+
+    private fun validDomain(value: String): Boolean {
+        if (value.isBlank() || value.length > 253 || value.any { it.isWhitespace() || it == ':' }) return false
         return try {
             val ascii = IDN.toASCII(value, IDN.USE_STD3_ASCII_RULES)
             ascii.split('.').all { label ->
