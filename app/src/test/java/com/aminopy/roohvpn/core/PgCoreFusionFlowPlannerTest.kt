@@ -61,6 +61,21 @@ class PgCoreFusionFlowPlannerTest {
     }
 
     @Test
+    fun externallyReportedFullPathIsClassifiedAsCapacityBlocked() {
+        val planner = PgCoreFusionFlowPlanner()
+        val result = planner.planNewFlow(
+            listOf(path("busy", 12, active = 1, maxFlows = 1)),
+            nowMillis = 1_000
+        )
+
+        assertEquals(
+            PgCoreFusionFlowPlanner.PlanResult.Reason.CAPACITY_CHANGED_RETRY,
+            (result as PgCoreFusionFlowPlanner.PlanResult.Rejected).reason
+        )
+        assertEquals(0, planner.activeReservations("busy"))
+    }
+
+    @Test
     fun staleMeasurementsFailClosed() {
         val planner = PgCoreFusionFlowPlanner()
         val result = planner.planNewFlow(
