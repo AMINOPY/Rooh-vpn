@@ -41,6 +41,13 @@ internal object XrayTunProfileAdapter {
                 if (outbound.optString("protocol").lowercase() in proxyProtocols) outbound else null
             }
             if (proxyOutbounds.size != 1) return null
+            // Duplicate tags make routing ambiguous even when there is only
+            // one proxy-protocol outbound. Reject them before adding the guard rule.
+            val outboundTags = (0 until outbounds.length()).mapNotNull { index ->
+                outbounds.optJSONObject(index)?.optString("tag")?.trim()?.takeIf { it.isNotEmpty() }
+            }
+            if (outboundTags.size != outboundTags.distinct().size) return null
+
             val proxyOutbound = proxyOutbounds.single()
             var proxyTag = proxyOutbound.optString("tag").trim()
             if (proxyTag.isEmpty()) {
@@ -53,10 +60,15 @@ internal object XrayTunProfileAdapter {
 
             // Do not attach a second TUN to a descriptor owned by another service.
             val inbounds = root.optJSONArray("inbounds") ?: JSONArray()
-            for (i in 0 until inbounds.length()) {
-                val inbound = inbounds.optJSONObject(i) ?: return null
-                if (inbound.optString("protocol").equals("tun", ignoreCase = true)) return null
+            val inboundTags = (0 until inbounds.length()).mapNotNull { index ->
+                val inbound = inbounds.optJSONObject(index) ?: return null
+                val tag = inbound.optString("tag").trim()
+                if (tag == TUN_TAG || inbound.optString("protocol").equals("tun", ignoreCase = true)) {
+                    return null
+                }
+                tag.takeIf { it.isNotEmpty() }
             }
+            if (inboundTags.size != inboundTags.distinct().size) return null
 
             val tunSettings = JSONObject()
                 .put("name", "roohvpn0")
