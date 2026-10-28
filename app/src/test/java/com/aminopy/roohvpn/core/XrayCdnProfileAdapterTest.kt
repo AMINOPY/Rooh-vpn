@@ -85,6 +85,36 @@ class XrayCdnProfileAdapterTest {
         assertEquals("edge", stream.getJSONObject("grpcSettings").getString("serviceName"))
     }
 
+    @Test fun supportsXhttpCdnHostWithoutDroppingPathModeOrExtra() {
+        val input = """
+            {"outbounds":[{"protocol":"vless",
+            "settings":{"vnext":[{"address":"origin.example.net","port":443,"users":[{"id":"x"}]}]},
+            "streamSettings":{"network":"xhttp","security":"tls",
+              "xhttpSettings":{"path":"/edge","mode":"stream-up","extra":{"headers":{"X-Test":"kept"}}},
+              "tlsSettings":{"serverName":"old.example.net","allowInsecure":false}}}]}
+        """.trimIndent().toByteArray()
+        val result = XrayCdnProfileAdapter.apply(
+            input,
+            XrayCdnProfileAdapter.Overrides(
+                sni = "front.example.com",
+                cdnEdgeIp = "192.0.2.21",
+                hostHeader = "origin.example.net"
+            )
+        )
+        assertTrue(result.errorCode ?: "unexpected transform failure", result.isSuccess)
+        val outbound = JSONObject(result.configuration!!).getJSONArray("outbounds").getJSONObject(0)
+        val server = outbound.getJSONObject("settings").getJSONArray("vnext").getJSONObject(0)
+        val stream = outbound.getJSONObject("streamSettings")
+        val xhttp = stream.getJSONObject("xhttpSettings")
+        assertEquals("192.0.2.21", server.getString("address"))
+        assertEquals("front.example.com", stream.getJSONObject("tlsSettings").getString("serverName"))
+        assertEquals("origin.example.net", xhttp.getString("host"))
+        assertEquals("/edge", xhttp.getString("path"))
+        assertEquals("stream-up", xhttp.getString("mode"))
+        assertEquals("kept", xhttp.getJSONObject("extra").getJSONObject("headers").getString("X-Test"))
+        assertFalse(stream.getJSONObject("tlsSettings").getBoolean("allowInsecure"))
+    }
+
     @Test fun defaultsTlsSniToHostWhenOnlyHostAndCdnIpAreProvided() {
         val result = XrayCdnProfileAdapter.apply(
             wsProfile(),
