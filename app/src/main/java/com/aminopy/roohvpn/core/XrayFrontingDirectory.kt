@@ -61,6 +61,8 @@ internal object XrayFrontingDirectory {
         if (envelopeBytes.isEmpty() || envelopeBytes.size > MAX_ENVELOPE_BYTES) {
             return Result(emptyList(), "INVALID_ENVELOPE_SIZE")
         }
+        var decodedPayloadForZeroing: ByteArray? = null
+        var decodedSignatureForZeroing: ByteArray? = null
         return try {
             val envelope = JSONObject(envelopeBytes.toString(Charsets.UTF_8))
             val payloadBytes = Base64.getDecoder().decode(envelope.getString("payload"))
