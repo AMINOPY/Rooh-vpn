@@ -85,6 +85,18 @@ class XrayCdnProfileAdapterTest {
         assertEquals("edge", stream.getJSONObject("grpcSettings").getString("serviceName"))
     }
 
+    @Test fun defaultsTlsSniToHostWhenOnlyHostAndCdnIpAreProvided() {
+        val result = XrayCdnProfileAdapter.apply(
+            wsProfile(),
+            XrayCdnProfileAdapter.Overrides(cdnEdgeIp = "192.0.2.16", hostHeader = "origin.example.net")
+        )
+        assertTrue(result.errorCode ?: "unexpected transform failure", result.isSuccess)
+        val stream = JSONObject(result.configuration!!)
+            .getJSONArray("outbounds").getJSONObject(0).getJSONObject("streamSettings")
+        assertEquals("origin.example.net", stream.getJSONObject("tlsSettings").getString("serverName"))
+        assertEquals("origin.example.net", stream.getJSONObject("wsSettings").getJSONObject("headers").getString("Host"))
+    }
+
     @Test fun supportsSniOnlyForTlsWithoutChangingServerAddress() {
         val result = XrayCdnProfileAdapter.apply(
             wsProfile(),
