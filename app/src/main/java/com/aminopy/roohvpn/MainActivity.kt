@@ -32,7 +32,11 @@ class MainActivity : Activity() {
     private var pendingConfiguration: ByteArray? = null
     private var pendingEngineId: EngineId? = null
     private var operationInProgress = false
-    private var lastStatus = "Import an Xray JSON or WireGuard profile from a trusted provider."
+    private var lastStatus = if (BuildConfig.FLAVOR == "singbox") {
+        "Import a sing-box JSON or WireGuard profile from a trusted provider."
+    } else {
+        "Import an Xray JSON or WireGuard profile from a trusted provider."
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,7 +73,7 @@ class MainActivity : Activity() {
             }
         }
         importButton = Button(this).apply {
-            text = "Import Xray / WireGuard profile"
+            text = if (BuildConfig.FLAVOR == "singbox") "Import sing-box / WireGuard profile" else "Import Xray / WireGuard profile"
             setOnClickListener { chooseProfile() }
         }
         connectButton = Button(this).apply {
@@ -166,6 +170,13 @@ class MainActivity : Activity() {
                     lastStatus = "WireGuard profile loaded in memory only; the private key is not saved."
                 }
                 ImportedProfileFormat.XRAY_JSON -> {
+                    if (BuildConfig.FLAVOR != "xray") {
+                        importedBytes!!.fill(0)
+                        importedBytes = null
+                        lastStatus = "This APK packages sing-box; use the Xray-flavor APK for Xray profiles."
+                        renderState()
+                        return
+                    }
                     val failure = com.aminopy.roohvpn.core.XrayProfilePreflight.validate(importedBytes!!)
                     if (failure != null) {
                         importedBytes!!.fill(0)
@@ -178,11 +189,23 @@ class MainActivity : Activity() {
                     lastStatus = "Xray profile loaded in memory only; connection requires a trusted server profile."
                 }
                 ImportedProfileFormat.SING_BOX_JSON -> {
-                    importedBytes!!.fill(0)
-                    importedBytes = null
-                    lastStatus = "Detected sing-box JSON, but its runtime is not enabled in this build."
-                    renderState()
-                    return
+                    if (BuildConfig.FLAVOR != "singbox") {
+                        importedBytes!!.fill(0)
+                        importedBytes = null
+                        lastStatus = "This APK packages Xray; use the singbox-flavor APK for sing-box profiles."
+                        renderState()
+                        return
+                    }
+                    val failure = com.aminopy.roohvpn.core.SingBoxProfilePreflight.validate(importedBytes!!)
+                    if (failure != null) {
+                        importedBytes!!.fill(0)
+                        importedBytes = null
+                        lastStatus = "The sing-box JSON profile failed structural validation."
+                        renderState()
+                        return
+                    }
+                    pendingEngineId = EngineId.SING_BOX
+                    lastStatus = "sing-box profile loaded in memory only; secrets are not saved."
                 }
                 ImportedProfileFormat.SHARE_LINK -> {
                     importedBytes!!.fill(0)
@@ -194,7 +217,7 @@ class MainActivity : Activity() {
                 else -> {
                     importedBytes!!.fill(0)
                     importedBytes = null
-                    lastStatus = "Unsupported profile. Select Xray JSON or a valid WireGuard profile."
+                    lastStatus = if (BuildConfig.FLAVOR == "singbox") "Unsupported profile. Select sing-box JSON or a valid WireGuard profile." else "Unsupported profile. Select Xray JSON or a valid WireGuard profile."
                     renderState()
                     return
                 }
