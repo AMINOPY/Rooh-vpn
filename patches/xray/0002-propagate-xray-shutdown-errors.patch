@@ -1,7 +1,7 @@
 diff --git a/libv2ray_main.go b/libv2ray_main.go
 --- a/libv2ray_main.go
 +++ b/libv2ray_main.go
-@@ -124,12 +124,19 @@
+@@ -124,13 +124,20 @@
  // StopLoop safely stops the core processing loop and releases resources
  // Thread-safe method that shuts down the Xray core and triggers necessary callbacks
  func (x *CoreController) StopLoop() error {
