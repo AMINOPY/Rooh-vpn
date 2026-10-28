@@ -19,11 +19,12 @@ The transform is applied before the Android TUN inbound is inserted by `XrayTunP
 - The adapter never turns off certificate validation or enables `allowInsecure`.
 - IP reachability, TCP/TLS handshake, HTTP 101 WebSocket upgrade / gRPC response, authentication, throughput and stability are not inferred from syntactic validity. Those need real network tests against a user-authorized endpoint.
 - A CDN edge IP can be reachable while the hostname/origin mapping is invalid. ICMP ping alone is not proof that a tunnel works.
-- This layer does not yet expose controls in the app UI or register a working Xray VPN backend. It is deliberately kept separate until the Xray Android runtime, TUN lifecycle and socket-protection callback are integrated and verified end-to-end.
+- The Xray runtime, Android TUN service, and fail-closed socket-protection callback are now wired into the engine backend and included in the Android build. The launch-time options API is ready for a UI to call, but the current minimal connection screen has not yet exposed these controls.
+- CI currently verifies compilation, unit tests, Xray AAR packaging, native library presence, and routing database assets. A real-device test is still required to verify actual TCP/UDP/DNS traffic, network handover, socket leak behavior, TLS handshake, and end-to-end CDN/origin compatibility.
 
 ## Test coverage
 
-Unit tests cover TLS SNI, REALITY SNI, CDN IP rewrite, distinct WebSocket Host, gRPC authority, invalid host/IP values, ambiguous/multi-server configurations, TLS verification preservation and integration with TUN profile preparation.
+Unit tests cover TLS SNI, REALITY SNI, CDN IP rewrite, distinct WebSocket Host, gRPC authority, XHTTP/HTTPUpgrade host handling, invalid host/IP values, ambiguous/multi-server configurations, TLS verification preservation, and integration with TUN profile preparation.
 
 ## References used for independent implementation
 
