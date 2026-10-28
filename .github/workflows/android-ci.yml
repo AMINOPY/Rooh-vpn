@@ -102,52 +102,59 @@ jobs:
           gradle-version: "8.14.3"
       - name: Compile and test PG CORE Android library
         run: gradle :pg-core-android:testDebugUnitTest
-      - name: Assemble debug APK
-        run: gradle :app:assembleDebug
-      - name: Verify native libraries are packaged
+      - name: Assemble Xray and sing-box debug APKs
+        run: gradle :app:assembleXrayDebug :app:assembleSingboxDebug
+      - name: Verify engine runtimes and native libraries
         shell: bash
         run: |
           set -euo pipefail
-          apk=app/build/outputs/apk/debug/app-debug.apk
-          unzip -l "$apk" | tee /tmp/roohvpn-apk-files.txt
-          grep -Eq 'lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^ ]+\.so$' /tmp/roohvpn-apk-files.txt || {
-            echo "No native .so libraries found in APK."
-            exit 1
-          }
-          echo "Native ABI entries packaged in APK:"
-          grep -E 'lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^ ]+\.so$' /tmp/roohvpn-apk-files.txt
-      - name: Record runtime dependency graph
-        run: gradle :app:dependencies --configuration debugRuntimeClasspath
-      - name: Verify Xray runtime and prevent duplicate gomobile runtimes
+          xray_apk=app/build/outputs/apk/xray/debug/app-xray-debug.apk
+          singbox_apk=app/build/outputs/apk/singbox/debug/app-singbox-debug.apk
+          test -s "$xray_apk"
+          test -s "$singbox_apk"
+          unzip -l "$xray_apk" > /tmp/roohvpn-xray-files.txt
+          unzip -l "$singbox_apk" > /tmp/roohvpn-singbox-files.txt
+          for listing in /tmp/roohvpn-xray-files.txt /tmp/roohvpn-singbox-files.txt; do
+            grep -Eq 'lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^ ]+\.so$' "$listing" || {
+              echo "No native .so libraries found in $listing"
+              exit 1
+            }
+            grep -q 'lib/arm64-v8a/libgojni.so' "$listing" || {
+              echo "Expected gomobile runtime missing from $listing"
+              exit 1
+            }
+          done
+          grep -q 'assets/geoip.dat' /tmp/roohvpn-xray-files.txt
+          grep -q 'assets/geosite.dat' /tmp/roohvpn-xray-files.txt
+          echo "Both engine flavors contain native libraries; Xray flavor includes routing databases."
+      - name: Verify isolated Go mobile runtime dependencies
         shell: bash
         run: |
           set -euo pipefail
-          gradle :app:dependencies --configuration debugRuntimeClasspath > /tmp/roohvpn-runtime-deps.txt
-          if grep -qi 'com.github.singbox-android:libbox' /tmp/roohvpn-runtime-deps.txt; then
-            echo "sing-box libbox must not be packaged with the current Xray gomobile AAR."
+          gradle :app:dependencies --configuration xrayDebugRuntimeClasspath > /tmp/xray-runtime-deps.txt
+          gradle :app:dependencies --configuration singboxDebugRuntimeClasspath > /tmp/singbox-runtime-deps.txt
+          if grep -qi 'com.github.singbox-android:libbox' /tmp/xray-runtime-deps.txt; then
+            echo "Xray flavor must not package sing-box libbox."
             exit 1
           fi
-          unzip -l app/build/outputs/apk/debug/app-debug.apk > /tmp/roohvpn-apk-files.txt
-          grep -q 'lib/arm64-v8a/libgojni.so' /tmp/roohvpn-apk-files.txt || {
-            echo "Expected Xray gomobile native runtime was not packaged for arm64-v8a."
+          grep -qi 'com.github.singbox-android:libbox' /tmp/singbox-runtime-deps.txt || {
+            echo "sing-box flavor is missing libbox from its runtime classpath."
             exit 1
           }
-          grep -q 'assets/geoip.dat' /tmp/roohvpn-apk-files.txt || {
-            echo "Pinned Xray geoip.dat asset is missing from the APK."
-            exit 1
-          }
-          grep -q 'assets/geosite.dat' /tmp/roohvpn-apk-files.txt || {
-            echo "Pinned Xray geosite.dat asset is missing from the APK."
-            exit 1
-          }
-          echo "Xray runtime and routing assets are packaged; libbox is not in debug runtime classpath."
-      - name: Run Android unit tests
-        run: gradle :app:testDebugUnitTest
-      - name: Upload debug APK
+      - name: Run Android unit tests for both engine flavors
+        run: gradle :app:testXrayDebugUnitTest :app:testSingboxDebugUnitTest
+      - name: Upload Xray debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: roohvpn-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: roohvpn-xray-debug-apk
+          path: app/build/outputs/apk/xray/debug/app-xray-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload sing-box debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: roohvpn-singbox-debug-apk
+          path: app/build/outputs/apk/singbox/debug/app-singbox-debug.apk
           if-no-files-found: error
           retention-days: 7
 
