@@ -15,6 +15,8 @@ import libv2ray.Libv2ray
 import libv2ray.SocketProtector
 import com.aminopy.roohvpn.MainActivity
 import com.aminopy.roohvpn.core.EngineFailure
+import com.aminopy.roohvpn.core.EngineLaunchOptions
+import com.aminopy.roohvpn.core.XrayCdnProfileAdapter
 import com.aminopy.roohvpn.core.XrayTunProfileAdapter
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -62,8 +64,12 @@ class XrayVpnService : VpnService() {
             return START_NOT_STICKY
         }
 
-        val configuration = synchronized(lock) {
-            pendingConfiguration.also { pendingConfiguration = null }
+        val (configuration, transportOverrides) = synchronized(lock) {
+            val pending = pendingConfiguration
+            val overrides = pendingTransportOverrides
+            pendingConfiguration = null
+            pendingTransportOverrides = null
+            pending to overrides
         }
         if (configuration == null) {
             signalStartFailure(failure("XRAY_PROFILE_MISSING", false))
@@ -72,13 +78,17 @@ class XrayVpnService : VpnService() {
             return START_NOT_STICKY
         }
 
-        worker.execute { startTunnel(configuration, startId) }
+        worker.execute { startTunnel(configuration, transportOverrides, startId) }
         return START_NOT_STICKY
     }
 
-    private fun startTunnel(configuration: ByteArray, startId: Int) {
+    private fun startTunnel(
+        configuration: ByteArray,
+        transportOverrides: XrayCdnProfileAdapter.Overrides?,
+        startId: Int
+    ) {
         try {
-            val adapted = XrayTunProfileAdapter.prepare(configuration)
+            val adapted = XrayTunProfileAdapter.prepare(configuration, transportOverrides)
                 ?: throw IllegalArgumentException("Xray profile rejected")
             configuration.fill(0)
 
@@ -230,6 +240,7 @@ class XrayVpnService : VpnService() {
             if (instance === this) instance = null
             pendingConfiguration?.fill(0)
             pendingConfiguration = null
+            pendingTransportOverrides = null
         }
         super.onDestroy()
     }
@@ -277,10 +288,18 @@ class XrayVpnService : VpnService() {
 
         @Volatile private var instance: XrayVpnService? = null
         @Volatile private var pendingConfiguration: ByteArray? = null
+        @Volatile private var pendingTransportOverrides: XrayCdnProfileAdapter.Overrides? = null
         @Volatile private var startLatch: CountDownLatch? = null
         @Volatile private var startFailure: EngineFailure? = null
 
-        fun start(context: Context, configuration: ByteArray): EngineFailure? {
+        fun start(context: Context, configuration: ByteArray): EngineFailure? =
+            start(context, configuration, EngineLaunchOptions())
+
+        fun start(
+            context: Context,
+            configuration: ByteArray,
+            options: EngineLaunchOptions
+        ): EngineFailure? {
             val latch: CountDownLatch
             synchronized(lock) {
                 if (instance?.running == true) {
@@ -289,6 +308,13 @@ class XrayVpnService : VpnService() {
                 }
                 pendingConfiguration?.fill(0)
                 pendingConfiguration = configuration.copyOf()
+                pendingTransportOverrides = if (options.hasXrayTransportOverrides()) {
+                    XrayCdnProfileAdapter.Overrides(
+                        sni = options.xraySni,
+                        cdnEdgeIp = options.xrayCdnEdgeIp,
+                        hostHeader = options.xrayHostHeader
+                    )
+                } else null
                 startFailure = null
                 latch = CountDownLatch(1)
                 startLatch = latch
