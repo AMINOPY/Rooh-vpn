@@ -59,7 +59,7 @@ internal object XrayCdnProfileAdapter {
 
             if (edgeIp != null) {
                 if (security != "tls") return Result(null, "CDN_REQUIRES_TLS")
-                if (network != "ws" && network != "grpc") {
+                if (network != "ws" && network != "grpc" && network != "xhttp") {
                     return Result(null, "CDN_TRANSPORT_UNSUPPORTED")
                 }
                 if (sni == null && host == null) return Result(null, "CDN_REQUIRES_SNI_OR_HOST")
@@ -73,10 +73,16 @@ internal object XrayCdnProfileAdapter {
                         ?: return Result(null, "MISSING_WS_SETTINGS")
                     val headers = ws.optJSONObject("headers") ?: JSONObject().also { ws.put("headers", it) }
                     if (effectiveHost != null) headers.put("Host", effectiveHost)
-                } else {
+                } else if (network == "grpc") {
                     val grpc = stream.optJSONObject("grpcSettings")
                         ?: return Result(null, "MISSING_GRPC_SETTINGS")
                     if (effectiveHost != null) grpc.put("authority", effectiveHost)
+                } else {
+                    // XHTTP's Host is configured in xhttpSettings.host, not
+                    // headers or grpcSettings.authority. Preserve path/mode/extra.
+                    val xhttp = stream.optJSONObject("xhttpSettings")
+                        ?: return Result(null, "MISSING_XHTTP_SETTINGS")
+                    if (effectiveHost != null) xhttp.put("host", effectiveHost)
                 }
                 if (!replaceSingleServerAddress(settings, outbound.optString("protocol"), edgeIp)) {
                     return Result(null, "UNSUPPORTED_SERVER_LAYOUT")
@@ -109,6 +115,11 @@ internal object XrayCdnProfileAdapter {
                         val grpc = stream.optJSONObject("grpcSettings")
                             ?: return Result(null, "MISSING_GRPC_SETTINGS")
                         grpc.put("authority", host)
+                    }
+                    "xhttp" -> {
+                        val xhttp = stream.optJSONObject("xhttpSettings")
+                            ?: return Result(null, "MISSING_XHTTP_SETTINGS")
+                        xhttp.put("host", host)
                     }
                     else -> return Result(null, "HOST_HEADER_TRANSPORT_UNSUPPORTED")
                 }
