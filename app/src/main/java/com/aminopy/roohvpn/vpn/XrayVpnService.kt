@@ -97,16 +97,19 @@ class XrayVpnService : VpnService() {
             // Android assets when the same-named file is not present on disk.
             Libv2ray.initCoreEnv(filesDir.absolutePath, "")
             val protector = object : SocketProtector {
-                override fun protectSocket(fd: Int): Boolean = protect(fd)
+                override fun protectSocket(fd: Long): Boolean {
+                    if (fd < 0L || fd > Int.MAX_VALUE.toLong()) return false
+                    return protect(fd.toInt())
+                }
             }
             // Gomobile maps Go error returns to Java exceptions; any registration
             // failure is caught below and prevents the core from starting.
             Libv2ray.registerSocketProtector(protector)
 
             val callbacks = object : CoreCallbackHandler {
-                override fun startup(): Int = 0
-                override fun shutdown(): Int = 0
-                override fun onEmitStatus(code: Int, message: String): Int = 0
+                override fun startup(): Long = 0L
+                override fun shutdown(): Long = 0L
+                override fun onEmitStatus(code: Long, message: String): Long = 0L
             }
             val core = Libv2ray.newCoreController(callbacks)
             controller = core
