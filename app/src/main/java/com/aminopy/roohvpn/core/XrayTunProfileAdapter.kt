@@ -17,10 +17,18 @@ internal object XrayTunProfileAdapter {
     const val IPV4_DNS = "1.1.1.1"
     const val IPV6_DNS = "2606:4700:4700::1111"
 
-    fun prepare(configuration: ByteArray): String? {
+    fun prepare(
+        configuration: ByteArray,
+        transportOverrides: XrayCdnProfileAdapter.Overrides? = null
+    ): String? {
         if (XrayProfilePreflight.validate(configuration) != null) return null
+        val effectiveConfiguration = if (transportOverrides == null) {
+            configuration.toString(Charsets.UTF_8)
+        } else {
+            XrayCdnProfileAdapter.apply(configuration, transportOverrides).configuration ?: return null
+        }
         return try {
-            val root = JSONObject(configuration.toString(Charsets.UTF_8))
+            val root = JSONObject(effectiveConfiguration)
             val outbounds = root.optJSONArray("outbounds") ?: return null
             if (outbounds.length() == 0) return null
 
