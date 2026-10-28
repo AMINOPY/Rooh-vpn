@@ -53,6 +53,16 @@ jobs:
           mkdir -p ../app/libs
           gomobile bind -v -target=android -androidapi 26 -trimpath -ldflags="-s -w -buildid= -checklinkname=0" -o ../app/libs/xray-core.aar ./
           test -s ../app/libs/xray-core.aar
+      - name: Package pinned Xray routing databases
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/main/assets
+          test -s xray-core/assets/geoip.dat
+          test -s xray-core/assets/geosite.dat
+          cp xray-core/assets/geoip.dat app/src/main/assets/geoip.dat
+          cp xray-core/assets/geosite.dat app/src/main/assets/geosite.dat
+          sha256sum app/src/main/assets/geoip.dat app/src/main/assets/geosite.dat
       - name: Record Xray AAR packaging metadata
         shell: bash
         run: |
