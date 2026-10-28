@@ -49,6 +49,12 @@ internal object XrayTunProfileAdapter {
             if (outboundTags.size != outboundTags.distinct().size) return null
 
             val proxyOutbound = proxyOutbounds.single()
+            val streamSettings = proxyOutbound.optJSONObject("streamSettings")
+            if (streamSettings?.optString("security", "none")?.equals("tls", ignoreCase = true) == true) {
+                val tlsSettings = streamSettings.optJSONObject("tlsSettings") ?: return null
+                // Never establish a VPN with certificate verification disabled.
+                if (tlsSettings.optBoolean("allowInsecure", false)) return null
+            }
             var proxyTag = proxyOutbound.optString("tag").trim()
             if (proxyTag.isEmpty()) {
                 proxyTag = "roohvpn-proxy"
