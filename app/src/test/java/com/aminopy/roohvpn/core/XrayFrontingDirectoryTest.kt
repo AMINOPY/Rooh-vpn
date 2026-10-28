@@ -75,8 +75,21 @@ class XrayFrontingDirectoryTest {
     @Test fun rejectsTamperedDirectorySignature() {
         val now = 1_800_000_000L
         val (envelope, publicKey) = signedEnvelope(now)
-        val tampered = envelope.toString(Charsets.UTF_8).replace("front-1", "front-2")
+        // The signature covers the decoded payload bytes, not the Base64
+        // envelope text. Mutate the signed payload while retaining its original
+        // signature so this test exercises signature verification itself.
+        val envelopeJson = JSONObject(envelope.toString(Charsets.UTF_8))
+        val payload = Base64.getDecoder().decode(envelopeJson.getString("payload"))
+        val changedPayload = payload.toString(Charsets.UTF_8)
+            .replace("front-1", "front-2")
             .toByteArray(Charsets.UTF_8)
+        val tampered = JSONObject()
+            .put("payload", Base64.getEncoder().encodeToString(changedPayload))
+            .put("signature", envelopeJson.getString("signature"))
+            .toString()
+            .toByteArray(Charsets.UTF_8)
+        payload.fill(0)
+        changedPayload.fill(0)
         val result = XrayFrontingDirectory.parseSigned(tampered, publicKey, now)
         assertFalseResult(result.errorCode)
     }
