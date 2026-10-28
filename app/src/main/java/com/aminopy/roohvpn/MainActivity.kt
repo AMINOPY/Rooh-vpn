@@ -16,7 +16,7 @@ import com.aminopy.roohvpn.core.EngineId
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-/** Explicit-consent WireGuard connection screen; no endpoints or credentials are fabricated. */
+/** Explicit-consent Xray/WireGuard profile connection screen; no endpoints or credentials are fabricated. */
 class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var engineStatus: TextView
@@ -180,7 +180,7 @@ class MainActivity : Activity() {
             importedBytes = null // ownership transferred to pendingConfiguration
         } catch (_: Exception) {
             importedBytes?.fill(0)
-            lastStatus = "Profile could not be read or exceeds the 64 KiB limit."
+            lastStatus = "Profile could not be read or exceeds the 1 MiB import limit."
         }
         renderState()
     }
