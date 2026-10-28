@@ -1,17 +1,18 @@
 diff --git a/libv2ray_android.go b/libv2ray_android.go
 --- a/libv2ray_android.go
 +++ b/libv2ray_android.go
-@@ -1,8 +1,68 @@
+@@ -1,9 +1,69 @@
  package libv2ray
  
  import (
  	"fmt"
++	"sync"
++	"syscall"
  
  	corenet "github.com/xtls/xray-core/common/net"
++	"github.com/xtls/xray-core/transport/internet"
  )
  
-+)
-+
 +// SocketProtector is implemented by the Android VpnService owner. ProtectSocket
 +// must call VpnService.protect(fd) synchronously while fd is valid.
 +type SocketProtector interface {
@@ -69,4 +70,4 @@ diff --git a/libv2ray_android.go b/libv2ray_android.go
 +	return socketControllerErr
 +}
 +
-+// ProcessFinder is an interface for Android process finding functionality.
+ // ProcessFinder is an interface for Android process finding functionality.
