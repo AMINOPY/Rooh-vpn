@@ -42,6 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           git apply ../patches/xray/0001-android-socket-protector.patch
+          git apply ../patches/xray/0002-propagate-xray-shutdown-errors.patch
           go test ./...
       - name: Build Xray Android AAR
         working-directory: xray-core
