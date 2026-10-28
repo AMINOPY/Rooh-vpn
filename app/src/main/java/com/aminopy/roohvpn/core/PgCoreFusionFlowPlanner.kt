@@ -54,8 +54,8 @@ class PgCoreFusionFlowPlanner(
                         path.packetLossPercent != null &&
                         age >= 0 && age <= maxSampleAgeMillis &&
                         path.maxConcurrentFlows > 0 &&
-                        path.activeFlows < path.maxConcurrentFlows &&
-                        allocator.activeReservations(path.id) >= path.maxConcurrentFlows
+                        maxOf(path.activeFlows, allocator.activeReservations(path.id)) >=
+                            path.maxConcurrentFlows
                 }
                 val reason = if (capacityBlocked) {
                     PlanResult.Reason.CAPACITY_CHANGED_RETRY
