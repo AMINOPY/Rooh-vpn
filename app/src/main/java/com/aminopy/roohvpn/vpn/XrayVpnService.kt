@@ -46,8 +46,12 @@ class XrayVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             worker.execute {
-                stopTunnel()
-                stopSelf(startId)
+                // Keep the foreground service alive when native shutdown or FD
+                // cleanup is not confirmed. Destroying the owner here would
+                // orphan a potentially live TUN/native core.
+                val failure = stopTunnel()
+                if (failure == null) stopSelf(startId)
+                else android.util.Log.e("RoohVpnXray", "Stop was not confirmed: ${failure.code}")
             }
             return START_NOT_STICKY
         }
