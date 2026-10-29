@@ -13,7 +13,7 @@ RØH VPN is an Android VPN client project focused on a reliable, testable networ
 ## Implemented in the current feature branch
 
 - Android application module and core lifecycle foundation.
-- Common engine contract, capability models, registry, and serialized connection coordinator.
+- Common engine contract, capability models, registry, serialized connection coordinator, and a fail-closed RØH engine-fusion role resolver that keeps Xray as parent and prevents competing TUN ownership.
 - WireGuard adapter using the official Android tunnel library (pinned dependency), including bounded profile parsing and safe error mapping.
 - Encrypted local profile storage backed by Android Keystore AES-GCM.
 - Provider-backed server-directory interface, hardened HTTPS discovery/profile clients, bounded concurrent reachability probes, deterministic selection, and auto-connect orchestration boundary.
@@ -32,6 +32,7 @@ RØH VPN is an Android VPN client project focused on a reliable, testable networ
 
 ## Project documents
 
+- [RØH engine fusion architecture and conflict rules](docs/ROH_ENGINE_FUSION_ARCHITECTURE.md)
 - [Core integration plan](docs/CORE_INTEGRATION_PLAN.md)
 - [Server discovery API contract](docs/SERVER_DISCOVERY_API.md)
 - [Third-party and licensing policy](docs/THIRD_PARTY_POLICY.md)
@@ -51,6 +52,8 @@ RØH VPN is an Android VPN client project focused on a reliable, testable networ
 Proton VPN's free service is not a generic public server pool. RØH VPN will not scrape, hard-code, or redistribute Proton endpoints or credentials; an integration requires an explicitly supported and authorized mechanism.
 
 ## Current status
+
+The RØH fusion role resolver is now implemented as a tested policy boundary. It is not yet a live packet bridge: PG CORE remains unverified as an active helper until its real native TUN-to-engine data path is connected and tested. The combined Xray + sing-box APK remains blocked by duplicate gomobile runtime classes; do not treat the experimental multi flavor as working until this is resolved and verified.
 
 **Development stage — not a release-ready VPN.** The `multi` flavor is an experimental attempt at one APK containing Xray, sing-box, and WireGuard. Aether and PG CORE are not operational data planes, and no physical-device traffic/leak validation has been recorded. CI verifies compilation, tests, and packaged library presence only—not live tunnel routing or leak resistance. The control plane is not deployed and its server directory is empty by default. Keep the pull request in draft until device-validation gates are completed.
 
