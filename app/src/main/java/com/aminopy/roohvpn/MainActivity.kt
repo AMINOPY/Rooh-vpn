@@ -513,6 +513,17 @@ class MainActivity : Activity() {
         saveProfileButton.isEnabled = !operationInProgress && active == null && pendingConfiguration != null
         savedProfilesButton.isEnabled = !operationInProgress && active == null
         removeProfileButton.isEnabled = !operationInProgress && active == null
+
+        // Keep stateful section summaries in sync after imports, saves, loads, and connection changes.
+        // Rebuild only pages that display coordinator/profile state; Settings owns live EditText views.
+        if (::contentHost.isInitialized && contentHost.childCount > 0 &&
+            (currentPage == "profiles" || currentPage == "engines")) {
+            val refreshedPage = if (currentPage == "profiles") buildProfilesPage() else buildEnginesPage()
+            contentHost.removeAllViews()
+            contentHost.addView(refreshedPage, FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+            ))
+        }
     }
 
     private fun saveCurrentProfile() {
