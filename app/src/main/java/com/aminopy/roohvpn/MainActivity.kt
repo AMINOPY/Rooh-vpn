@@ -376,7 +376,8 @@ class MainActivity : Activity() {
         ), marginParams(bottom = 12))
         page.addView(actionButton("＋   Import a configuration", true) { chooseProfile() }, marginParams(bottom = 8))
         page.addView(actionButton("▤   Open saved configurations", false) { showSavedProfiles() }, marginParams(bottom = 8))
-        page.addView(actionButton("◈   View engine readiness", false) { navigateTo("engines") }, marginParams(bottom = 12))
+        page.addView(actionButton("◈   View engine readiness", false) { navigateTo("engines") }, marginParams(bottom = 8))
+        page.addView(actionButton("✓   Run local profile preflight", true) { runLocalProfilePreflight() }, marginParams(bottom = 12))
         page.addView(infoCard(
             "DIAGNOSTIC HONESTY",
             "TCP reachability is not a VPN handshake or a speed test. This page does not report fake ping, throughput, DNS safety, or IP-leak results. Tunnel verification requires real measurements and a device test."
@@ -386,6 +387,65 @@ class MainActivity : Activity() {
             "Per-app routing, tunnel chaining, automated speed tests, MTU discovery and DNS/IP leak checks are not represented as completed features in this screen."
         ), marginParams(bottom = 12))
         return pageScroll(page)
+    }
+
+    /**
+     * Checks only local profile format and backend registration. This deliberately
+     * does not claim that a remote server, tunnel, DNS path, or leak test succeeded.
+     */
+    private fun runLocalProfilePreflight() {
+        val config = pendingConfiguration
+        val selectedEngine = pendingEngineId
+        val lines = mutableListOf<String>()
+        lines += "LOCAL PROFILE PREFLIGHT"
+        lines += ""
+
+        if (config == null || selectedEngine == null) {
+            lines += "✗ No profile is currently loaded."
+            lines += "Import a supported configuration from a provider you trust, then run this check again."
+            lines += ""
+            lines += "No network traffic was tested."
+            AlertDialog.Builder(this)
+                .setTitle("Local profile preflight")
+                .setMessage(lines.joinToString("\n"))
+                .setPositiveButton("OK", null)
+                .show()
+            return
+        }
+
+        val classification = EngineConfigClassifier.classify(config)
+        val coordinator = (application as RoohVpnApplication).connectionCoordinator
+        val backendRegistered = coordinator.isEngineAvailable(selectedEngine)
+        lines += "Loaded profile: yes (${config.size} bytes)"
+        lines += "Selected engine: $selectedEngine"
+        lines += "Detected format: ${classification.format}"
+        lines += if (classification.engineId == null) {
+            "Format-to-engine mapping: unresolved"
+        } else if (classification.engineId == selectedEngine) {
+            "Format-to-engine mapping: matches"
+        } else {
+            "Format-to-engine mapping: mismatch (detected ${classification.engineId})"
+        }
+        lines += if (backendRegistered) {
+            "Backend registration: available"
+        } else {
+            "Backend registration: unavailable"
+        }
+
+        when (classification.format) {
+            ImportedProfileFormat.SHARE_LINK -> lines += "Action needed: share links are detected but are not converted into a runnable engine configuration here."
+            ImportedProfileFormat.UNKNOWN -> lines += "Action needed: the imported format could not be identified; verify it with your provider."
+            else -> if (classification.engineId != selectedEngine) {
+                lines += "Action needed: re-import a configuration matching the selected engine."
+            }
+        }
+        lines += ""
+        lines += "LIMIT: this is a local preflight only. It does not connect to a server or test TCP/UDP, DNS, IPv4/IPv6, speed, or IP leaks."
+        AlertDialog.Builder(this)
+            .setTitle("Local profile preflight")
+            .setMessage(lines.joinToString("\n"))
+            .setPositiveButton("OK", null)
+            .show()
     }
 
     private fun buildEnginesPage(): View {
