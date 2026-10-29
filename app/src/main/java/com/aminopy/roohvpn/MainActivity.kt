@@ -432,6 +432,28 @@ class MainActivity : Activity() {
             "Backend registration: unavailable"
         }
 
+        // Reuse the bounded structural checks used by the import/connect flow.
+        // This cannot prove native-engine compatibility or remote reachability.
+        val structuralFailure = when (classification.format) {
+            ImportedProfileFormat.XRAY_JSON ->
+                if (BuildConfig.FLAVOR == "xray") com.aminopy.roohvpn.core.XrayProfilePreflight.validate(config)
+                else EngineFailure("WRONG_APK_FLAVOR", "Xray profiles require the Xray-flavor APK.", false)
+            ImportedProfileFormat.SING_BOX_JSON ->
+                if (BuildConfig.FLAVOR == "singbox") com.aminopy.roohvpn.core.SingBoxProfilePreflight.validate(config)
+                else EngineFailure("WRONG_APK_FLAVOR", "sing-box profiles require the sing-box-flavor APK.", false)
+            ImportedProfileFormat.WIREGUARD -> null // Native parser validates at connect time.
+            else -> null
+        }
+        lines += when {
+            structuralFailure != null -> "Structural preflight: failed (" + structuralFailure.code + ")"
+            classification.format == ImportedProfileFormat.XRAY_JSON ||
+                classification.format == ImportedProfileFormat.SING_BOX_JSON ->
+                "Structural preflight: passed (native validation still required)"
+            classification.format == ImportedProfileFormat.WIREGUARD ->
+                "Structural preflight: deferred to WireGuard backend"
+            else -> "Structural preflight: unavailable for this format"
+        }
+
         when (classification.format) {
             ImportedProfileFormat.SHARE_LINK -> lines += "Action needed: share links are detected but are not converted into a runnable engine configuration here."
             ImportedProfileFormat.UNKNOWN -> lines += "Action needed: the imported format could not be identified; verify it with your provider."
