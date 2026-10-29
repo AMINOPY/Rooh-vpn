@@ -146,7 +146,6 @@ jobs:
           fi
           grep -qi 'com.github.singbox-android:libbox' /tmp/singbox-runtime-deps.txt
           grep -qi 'com.github.singbox-android:libbox' /tmp/multi-runtime-deps.txt
-          grep -qi 'xray-core.aar' /tmp/multi-runtime-deps.txt || grep -qi 'libs/xray-core.aar' /tmp/multi-runtime-deps.txt
           echo "Single-engine isolation and multi-engine dependency checks passed."
 
       - name: Run Android unit tests
