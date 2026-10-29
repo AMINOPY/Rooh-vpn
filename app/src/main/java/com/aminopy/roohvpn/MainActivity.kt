@@ -217,13 +217,13 @@ class MainActivity : Activity() {
             }
             if (engine == null) {
                 lastStatus = "Saved profile is unsupported or failed validation in this APK flavor."
-                return
+            } else {
+                pendingConfiguration?.fill(0)
+                pendingConfiguration = bytes
+                candidate = null
+                pendingEngineId = engine
+                lastStatus = "Loaded saved $engine profile into memory. It remains encrypted at rest."
             }
-            pendingConfiguration?.fill(0)
-            pendingConfiguration = bytes
-            candidate = null
-            pendingEngineId = engine
-            lastStatus = "Loaded saved $engine profile into memory. It remains encrypted at rest."
         } catch (_: Exception) {
             lastStatus = "Saved profile could not be parsed safely."
         } finally {
