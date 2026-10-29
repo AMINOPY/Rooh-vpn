@@ -51,6 +51,49 @@ class ConnectionCoordinatorTest {
     }
 
     @Test
+    fun validationFailureFailsClosedWithoutStartingBackendAndClearsConfig() {
+        val backend = object : EngineBackend {
+            override val id = EngineId.XRAY
+            override val capabilities = EngineCapabilities(
+                tunnelMode = TunnelMode.NATIVE_TUN,
+                supportsIpv4 = true,
+                supportsIpv6 = true,
+                supportsDnsRouting = true,
+                supportsPerAppRouting = false,
+                supportedConfigFormats = setOf("test")
+            )
+            var startCalls = 0
+            var stopCalls = 0
+
+            override fun validate(configuration: ByteArray) =
+                EngineFailure("PROFILE_REJECTED", "Profile was rejected.", false)
+
+            override fun start(configuration: ByteArray): EngineFailure? {
+                startCalls += 1
+                return null
+            }
+
+            override fun status() = EngineStatus(id, EngineState.RUNNING)
+
+            override fun stop(): EngineFailure? {
+                stopCalls += 1
+                return null
+            }
+        }
+        val coordinator = ConnectionCoordinator(EngineRegistry(listOf(backend)))
+        val config = byteArrayOf(4, 5, 6)
+
+        val failure = coordinator.connect(EngineId.XRAY, config)
+
+        assertEquals("PROFILE_REJECTED", failure?.code)
+        assertEquals(0, backend.startCalls)
+        assertEquals(0, backend.stopCalls)
+        assertFalse(config.any { it.toInt() != 0 })
+        assertNull(coordinator.activeEngine())
+        assertFalse(coordinator.isOperationInProgress())
+    }
+
+    @Test
     fun partialStartFailureTriggersCleanup() {
         val backend = FakeBackend(startFailure = EngineFailure("START_FAILED", "Could not start engine.", true))
         val coordinator = ConnectionCoordinator(EngineRegistry(listOf(backend)))
