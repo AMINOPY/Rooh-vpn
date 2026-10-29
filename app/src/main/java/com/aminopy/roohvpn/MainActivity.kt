@@ -1,6 +1,7 @@
 package com.aminopy.roohvpn
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
@@ -15,6 +16,7 @@ import com.aminopy.roohvpn.core.BoundedProfileReader
 import com.aminopy.roohvpn.core.EngineConfigClassifier
 import com.aminopy.roohvpn.core.ImportedProfileFormat
 import com.aminopy.roohvpn.core.EngineId
+import com.aminopy.roohvpn.security.EncryptedProfileStore
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -23,6 +25,10 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var engineStatus: TextView
     private lateinit var importButton: Button
+    private lateinit var saveProfileButton: Button
+    private lateinit var savedProfilesButton: Button
+    private lateinit var removeProfileButton: Button
+    private val profileStore by lazy { EncryptedProfileStore(applicationContext) }
     private lateinit var connectButton: Button
     private lateinit var disconnectButton: Button
     private lateinit var sniInput: EditText
@@ -76,6 +82,18 @@ class MainActivity : Activity() {
             text = if (BuildConfig.FLAVOR == "singbox") "Import sing-box / WireGuard profile" else "Import Xray / WireGuard profile"
             setOnClickListener { chooseProfile() }
         }
+        saveProfileButton = Button(this).apply {
+            text = "Save profile securely"
+            setOnClickListener { saveCurrentProfile() }
+        }
+        savedProfilesButton = Button(this).apply {
+            text = "Saved profiles"
+            setOnClickListener { showSavedProfiles() }
+        }
+        removeProfileButton = Button(this).apply {
+            text = "Delete saved profile"
+            setOnClickListener { chooseSavedProfileToDelete() }
+        }
         connectButton = Button(this).apply {
             text = "Connect"
             setOnClickListener { requestVpnConsentAndConnect() }
@@ -102,6 +120,9 @@ class MainActivity : Activity() {
         root.addView(status, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         root.addView(engineStatus, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         root.addView(importButton)
+        root.addView(saveProfileButton)
+        root.addView(savedProfilesButton)
+        root.addView(removeProfileButton)
         root.addView(sniInput)
         root.addView(cdnIpInput)
         root.addView(hostInput)
@@ -122,6 +143,128 @@ class MainActivity : Activity() {
         connectButton.isEnabled = !operationInProgress && pendingConfiguration != null && pendingEngineId != null && active == null
         disconnectButton.isEnabled = !operationInProgress && active != null
         importButton.isEnabled = !operationInProgress && active == null
+        saveProfileButton.isEnabled = !operationInProgress && active == null && pendingConfiguration != null
+        savedProfilesButton.isEnabled = !operationInProgress && active == null
+        removeProfileButton.isEnabled = !operationInProgress && active == null
+    }
+
+    private fun saveCurrentProfile() {
+        val current = pendingConfiguration ?: return
+        if (operationInProgress) return
+        val id = "profile-${System.currentTimeMillis()}"
+        val copy = current.copyOf()
+        try {
+            profileStore.save(id, copy.toString(Charsets.UTF_8))
+            lastStatus = "Profile saved encrypted with Android Keystore: $id"
+        } catch (_: Exception) {
+            lastStatus = "Could not save this profile securely."
+        } finally {
+            copy.fill(0)
+        }
+        renderState()
+    }
+
+    private fun showSavedProfiles() {
+        val ids = try {
+            profileStore.listProfileIds()
+        } catch (_: Exception) {
+            lastStatus = "Could not read saved profile index."
+            renderState()
+            return
+        }
+        if (ids.isEmpty()) {
+            lastStatus = "No saved profiles yet. Import a profile, then choose Save profile securely."
+            renderState()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Saved encrypted profiles")
+            .setItems(ids.toTypedArray()) { _, which -> loadSavedProfile(ids[which]) }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun loadSavedProfile(id: String) {
+        val stored = try {
+            profileStore.load(id)
+        } catch (_: Exception) {
+            null
+        }
+        if (stored == null) {
+            lastStatus = "Saved profile could not be decrypted; it may be corrupted or the Keystore key is unavailable."
+            renderState()
+            return
+        }
+        var candidate: ByteArray? = stored.json.toByteArray(Charsets.UTF_8)
+        try {
+            val bytes = candidate ?: return
+            val classification = EngineConfigClassifier.classify(bytes)
+            val engine = when (classification.format) {
+                ImportedProfileFormat.WIREGUARD -> EngineId.WIREGUARD
+                ImportedProfileFormat.XRAY_JSON -> {
+                    if (BuildConfig.FLAVOR != "xray" ||
+                        com.aminopy.roohvpn.core.XrayProfilePreflight.validate(bytes) != null) {
+                        null
+                    } else EngineId.XRAY
+                }
+                ImportedProfileFormat.SING_BOX_JSON -> {
+                    if (BuildConfig.FLAVOR != "singbox" ||
+                        com.aminopy.roohvpn.core.SingBoxProfilePreflight.validate(bytes) != null) {
+                        null
+                    } else EngineId.SING_BOX
+                }
+                else -> null
+            }
+            if (engine == null) {
+                lastStatus = "Saved profile is unsupported or failed validation in this APK flavor."
+                return
+            }
+            pendingConfiguration?.fill(0)
+            pendingConfiguration = bytes
+            candidate = null
+            pendingEngineId = engine
+            lastStatus = "Loaded saved $engine profile into memory. It remains encrypted at rest."
+        } catch (_: Exception) {
+            lastStatus = "Saved profile could not be parsed safely."
+        } finally {
+            candidate?.fill(0)
+        }
+        renderState()
+    }
+
+    private fun chooseSavedProfileToDelete() {
+        val ids = try {
+            profileStore.listProfileIds()
+        } catch (_: Exception) {
+            lastStatus = "Could not read saved profile index."
+            renderState()
+            return
+        }
+        if (ids.isEmpty()) {
+            lastStatus = "There are no saved profiles to delete."
+            renderState()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Delete saved profile")
+            .setItems(ids.toTypedArray()) { _, which ->
+                val selected = ids[which]
+                AlertDialog.Builder(this)
+                    .setMessage("Permanently delete $selected?")
+                    .setPositiveButton("Delete") { _, _ ->
+                        try {
+                            profileStore.delete(selected)
+                            lastStatus = "Deleted saved profile: $selected"
+                        } catch (_: Exception) {
+                            lastStatus = "Could not delete the saved profile."
+                        }
+                        renderState()
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+            .setNegativeButton("Close", null)
+            .show()
     }
 
     private fun chooseProfile() {
