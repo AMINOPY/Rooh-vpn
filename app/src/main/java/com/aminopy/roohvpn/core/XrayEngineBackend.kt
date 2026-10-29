@@ -43,6 +43,9 @@ class XrayEngineBackend(context: Context) : EngineBackend {
         configuration: ByteArray,
         options: EngineLaunchOptions
     ): EngineFailure? {
+        if (options.hasSingBoxTransportOverrides()) {
+            return EngineFailure("ENGINE_OPTION_UNSUPPORTED", "sing-box transport overrides cannot be applied to an Xray profile.", false)
+        }
         if (!options.hasXrayTransportOverrides()) return validate(configuration)
         if (XrayProfilePreflight.validate(configuration) != null) return invalidConfiguration()
 
@@ -73,6 +76,10 @@ class XrayEngineBackend(context: Context) : EngineBackend {
         configuration: ByteArray,
         options: EngineLaunchOptions
     ): EngineFailure? {
+        if (options.hasSingBoxTransportOverrides()) {
+            configuration.fill(0)
+            return EngineFailure("ENGINE_OPTION_UNSUPPORTED", "sing-box transport overrides cannot be applied to an Xray profile.", false)
+        }
         if (!options.hasXrayTransportOverrides()) return start(configuration)
         validate(configuration, options)?.let {
             configuration.fill(0)
