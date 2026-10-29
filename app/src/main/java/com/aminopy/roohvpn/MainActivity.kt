@@ -342,10 +342,19 @@ class MainActivity : Activity() {
 
     private fun buildProfilesPage(): View {
         val page = pageScaffold("Profiles", "Import, load, store and remove your own trusted VPN profiles.")
-        val profileSummary = if (pendingEngineId != null && pendingConfiguration != null) {
-            "Loaded in memory: $pendingEngineId\n$lastStatus"
-        } else {
-            "No profile loaded. Choose a configuration file supplied by a provider you trust."
+        val savedCount = try {
+            profileStore.listProfileIds().size
+        } catch (_: Exception) {
+            null
+        }
+        val profileSummary = buildString {
+            append(if (pendingEngineId != null && pendingConfiguration != null) {
+                "Loaded in memory: $pendingEngineId\n$lastStatus"
+            } else {
+                "No profile loaded. Choose a configuration file supplied by a provider you trust."
+            })
+            append("\n\nSaved encrypted profiles: ")
+            append(savedCount?.toString() ?: "unavailable")
         }
         page.addView(infoCard("CURRENT PROFILE", profileSummary), marginParams(bottom = 12))
         page.addView(actionButton("＋   Import profile", true) { chooseProfile() }, marginParams(bottom = 8))
