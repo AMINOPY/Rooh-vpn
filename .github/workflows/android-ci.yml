@@ -55,7 +55,7 @@ jobs:
           export PATH="$PATH:$(go env GOPATH)/bin"
           gomobile init
           mkdir -p ../app/libs
-          gomobile bind -v -target=android -androidapi 26 -trimpath -ldflags="-s -w -buildid= -checklinkname=0" -o ../app/libs/xray-core.aar ./
+          gomobile bind -v -target=android -androidapi 26 -javapkg=com.aminopy.roohvpn.xray -trimpath -ldflags="-s -w -buildid= -checklinkname=0" -o ../app/libs/xray-core.aar ./
           test -s ../app/libs/xray-core.aar
 
       - name: Package Xray routing databases
