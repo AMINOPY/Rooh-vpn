@@ -34,6 +34,16 @@ class SingBoxProfilePreflightTest {
         org.junit.Assert.assertFalse(failure?.safeMessage?.contains("C3") == true)
     }
 
+    @Test fun rejectsCoercedOrFractionalOutboundFields() {
+        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"outbounds":[{"type":123,"server":"example.invalid","server_port":443}]}""")?.code)
+        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"outbounds":[{"type":"vless","server":"example.invalid","server_port":"443"}]}""")?.code)
+        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"outbounds":[{"type":"vless","server":"example.invalid","server_port":443.5}]}""")?.code)
+    }
+
+    @Test fun acceptsNumericIntegerServerPort() {
+        assertNull(validate("""{"outbounds":[{"type":"vless","server":"example.invalid","server_port":443}]}"""))
+    }
+
     @Test fun rejectsEmptyAndOversizedProfiles() {
         assertEquals("SING_BOX_CONFIG_INVALID", SingBoxProfilePreflight.validate(byteArrayOf())?.code)
         val oversized = ByteArray(1024 * 1024 + 1) { ' '.code.toByte() }
