@@ -1,0 +1,183 @@
+name: Android and Control Plane CI
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: roohvpn-ci-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository and core submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.0"
+          cache-dependency-path: |
+            pg-core/go.sum
+            xray-core/go.sum
+
+      - name: Test PG CORE Go engine
+        working-directory: pg-core
+        run: go test ./...
+
+      - name: Test pinned Xray source
+        working-directory: xray-core
+        run: go test ./...
+
+      - name: Apply Android socket-protection and shutdown patches
+        working-directory: xray-core
+        run: |
+          set -euo pipefail
+          git apply ../patches/xray/0001-android-socket-protector.patch
+          git apply ../patches/xray/0002-propagate-xray-shutdown-errors.patch
+          go test ./...
+
+      - name: Fetch pinned sing-box source
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v1.14.0 https://github.com/SagerNet/sing-box.git sing-box-source
+          test -d sing-box-source/experimental/libbox
+          find sing-box-source/experimental/libbox -maxdepth 1 -name '*.go' -print -quit | grep -q .
+
+      - name: Build a single combined Go mobile AAR
+        working-directory: xray-core
+        run: |
+          set -euo pipefail
+          go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.8
+          export PATH="$PATH:$(go env GOPATH)/bin"
+          gomobile init
+          go work init . ../sing-box-source
+          mkdir -p ../app/libs
+          # Bind both public APIs into one AAR. This creates one gomobile
+          # Java runtime and one native library instead of colliding go.Seq
+          # classes from two independently-built AARs.
+          gomobile bind -v -target=android -androidapi 26 \
+            -javapkg=io.nekohasekai -libname=box \
+            -trimpath -ldflags="-s -w -buildid= -checklinkname=0" \
+            -o ../app/libs/roohvpn-core.aar \
+            ./ github.com/sagernet/sing-box/experimental/libbox
+          test -s ../app/libs/roohvpn-core.aar
+
+      - name: Package Xray routing databases
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/main/assets
+          test -s xray-core/assets/geoip.dat
+          test -s xray-core/assets/geosite.dat
+          cp xray-core/assets/geoip.dat app/src/main/assets/geoip.dat
+          cp xray-core/assets/geosite.dat app/src/main/assets/geosite.dat
+          sha256sum app/src/main/assets/geoip.dat app/src/main/assets/geosite.dat
+
+      - name: Record unified core AAR metadata
+        run: |
+          set -euo pipefail
+          {
+            echo "Artifact: app/libs/roohvpn-core.aar"
+            sha256sum app/libs/roohvpn-core.aar
+            du -h app/libs/roohvpn-core.aar
+          } > app/libs/roohvpn-core-aar-report.txt
+          cat app/libs/roohvpn-core-aar-report.txt
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0 ndk;29.0.14206865'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+
+      - name: Test PG CORE Android library
+        run: gradle :pg-core-android:testDebugUnitTest
+
+      - name: Assemble the one RØH VPN APK
+        run: gradle :app:assembleDebug
+
+      - name: Verify the unified APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$apk"
+          unzip -Z1 "$apk" > /tmp/apk-entries.txt
+          grep -Fxq 'lib/arm64-v8a/libbox.so' /tmp/apk-entries.txt
+          grep -Fxq 'assets/geoip.dat' /tmp/apk-entries.txt
+          grep -Fxq 'assets/geosite.dat' /tmp/apk-entries.txt
+          echo "Unified APK contains one combined Go runtime and Xray routing databases."
+          sha256sum "$apk"
+
+      - name: Run Android unit tests
+        run: gradle :app:testDebugUnitTest
+
+      - name: Upload single APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: roohvpn-unified-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Create final ZIP bundle (APK + source tree)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/ROH-VPN-unified-debug.apk
+          cp README.md dist/README.md
+          cp docs/ROH_ENGINE_FUSION_ARCHITECTURE.md dist/ROH_ENGINE_FUSION_ARCHITECTURE.md
+          sha256sum dist/ROH-VPN-unified-debug.apk > dist/SHA256SUMS.txt
+          # Bundle the checked-out project and engine submodule sources, plus
+          # the combined AAR and one APK. Exclude VCS metadata and build caches.
+          zip -qr dist/ROH-VPN-final-bundle.zip . \
+            -x './.git/*' '*/.git/*' './**/.git/*' \
+               './.gradle/*' '*/.gradle/*' './**/.gradle/*' \
+               '*/build/*' './**/build/*' \
+               './dist/ROH-VPN-final-bundle.zip' '*/.DS_Store'
+          test -s dist/ROH-VPN-final-bundle.zip
+
+      - name: Upload final ZIP bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: roohvpn-final-zip-bundle
+          path: dist/ROH-VPN-final-bundle.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  control-plane:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server-control-plane
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Test control-plane API
+        run: npm test

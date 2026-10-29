@@ -1,0 +1,25 @@
+diff --git a/libv2ray_main.go b/libv2ray_main.go
+--- a/libv2ray_main.go
++++ b/libv2ray_main.go
+@@ -124,13 +124,20 @@
+ // StopLoop safely stops the core processing loop and releases resources
+ // Thread-safe method that shuts down the core instance and triggers necessary callbacks
+ func (x *CoreController) StopLoop() error {
+ 	x.coreMutex.Lock()
+ 	defer x.coreMutex.Unlock()
+ 
+ 	if x.IsRunning {
+-		x.doShutdown()
++		if x.coreInstance != nil {
++			if err := x.coreInstance.Close(); err != nil {
++				return fmt.Errorf("core shutdown failed: %w", err)
++			}
++			x.coreInstance = nil
++		}
++		x.IsRunning = false
++		x.statsManager = nil
+ 		x.CallbackHandler.Shutdown()
+ 		x.CallbackHandler.OnEmitStatus(0, "Core stopped")
+ 	}
+ 	return nil
+ }

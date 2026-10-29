@@ -1,0 +1,52 @@
+package com.aminopy.roohvpn.core
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+import java.nio.charset.StandardCharsets
+
+class SingBoxProfilePreflightTest {
+    private fun validate(json: String) = SingBoxProfilePreflight.validate(json.toByteArray(StandardCharsets.UTF_8))
+
+    @Test fun acceptsStructurallyPlausibleOutbound() {
+        assertNull(validate("""{"outbounds":[{"type":"vless","server":"example.invalid","server_port":443}]}"""))
+    }
+
+    @Test fun acceptsDirectOutboundWithoutServer() {
+        assertNull(validate("""{"outbounds":[{"type":"direct"}]}"""))
+    }
+
+    @Test fun rejectsMalformedAndMissingOutbounds() {
+        assertEquals("SING_BOX_CONFIG_INVALID", validate("{bad")?.code)
+        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"inbounds":[]}""")?.code)
+        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"outbounds":[]}""")?.code)
+    }
+
+    @Test fun rejectsInvalidServerPortAndMissingType() {
+        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"outbounds":[{"type":"vless","server":"example.invalid","server_port":70000}]}""")?.code)
+        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"outbounds":[{"server":"example.invalid","server_port":443}]}""")?.code)
+    }
+
+    @Test fun rejectsMalformedUtf8WithoutEchoingProfileData() {
+        val malformed = byteArrayOf(0x7B, 0x22, 0xC3.toByte(), 0x28, 0x22, 0x7D)
+        val failure = SingBoxProfilePreflight.validate(malformed)
+        assertEquals("SING_BOX_CONFIG_INVALID", failure?.code)
+        org.junit.Assert.assertFalse(failure?.safeMessage?.contains("C3") == true)
+    }
+
+    @Test fun rejectsCoercedOrFractionalOutboundFields() {
+        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"outbounds":[{"type":123,"server":"example.invalid","server_port":443}]}""")?.code)
+        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"outbounds":[{"type":"vless","server":"example.invalid","server_port":"443"}]}""")?.code)
+        assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"outbounds":[{"type":"vless","server":"example.invalid","server_port":443.5}]}""")?.code)
+    }
+
+    @Test fun acceptsNumericIntegerServerPort() {
+        assertNull(validate("""{"outbounds":[{"type":"vless","server":"example.invalid","server_port":443}]}"""))
+    }
+
+    @Test fun rejectsEmptyAndOversizedProfiles() {
+        assertEquals("SING_BOX_CONFIG_INVALID", SingBoxProfilePreflight.validate(byteArrayOf())?.code)
+        val oversized = ByteArray(1024 * 1024 + 1) { ' '.code.toByte() }
+        assertEquals("SING_BOX_CONFIG_INVALID", SingBoxProfilePreflight.validate(oversized)?.code)
+    }
+}

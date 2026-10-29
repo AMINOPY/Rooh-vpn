@@ -1,0 +1,7 @@
+[submodule "pg-core"]
+	path = pg-core
+	url = https://github.com/AMINOPY/pg-core.git
+
+[submodule "xray-core"]
+	path = xray-core
+	url = https://github.com/2dust/AndroidLibXrayLite.git
