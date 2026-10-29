@@ -261,7 +261,7 @@ class MainActivity : Activity() {
 
     @Deprecated("Use the navigation bar to move between app sections.")
     override fun onBackPressed() {
-        if (::currentPage.isInitialized && currentPage != "home") {
+        if (currentPage != "home") {
             navigateTo("home")
         } else {
             super.onBackPressed()
