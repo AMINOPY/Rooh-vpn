@@ -24,11 +24,11 @@ EngineFusionCoordinator implements deterministic role resolution and fail-closed
 
 PG CORE's existing allocator/selector remains responsible for capacity reservations and fresh-measurement path selection. The future integration point is a real flow adapter that atomically reserves a path, hands a new flow to that transport, and closes the lease on flow teardown. Existing flows must remain pinned unless a protocol-safe migration mechanism is implemented.
 
-## Single-APK native runtime blocker
+## Single-APK native runtime strategy
 
-The current Xray and prebuilt sing-box gomobile bindings export duplicate Java runtime classes such as go.Seq. Adding both AARs to one Android application fails duplicate-class validation. Do not disable the check, exclude arbitrary classes, or claim that separate Gradle flavors create a combined APK.
+The Gradle app is configured as one application variant. CI attempts to build a single `roohvpn-core.aar` by binding the Xray `libv2ray` and sing-box `libbox` Go packages in one `gomobile bind` invocation. This should produce one shared Java `go.Seq` runtime and one native `libbox.so`, avoiding the duplicate runtime classes caused by combining two independently-built AARs. The build must fail if the combined binding cannot be generated; do not disable duplicate-class validation or exclude arbitrary runtime classes.
 
-A valid single-APK implementation must rebuild the sing-box binding with a compatible isolated Java package/runtime and resolve native-library loading/registration collisions, or use a tested process-isolation design with a real authenticated IPC packet bridge. The final APK must prove that both runtimes load simultaneously and pass the same traffic tests. Until that exists, the combined package is blocked; isolated Xray and sing-box builds do not satisfy the one-APK requirement.
+This is a packaging/build strategy, not proof that both engines can start and pass traffic simultaneously. The combined AAR and one-APK build must pass CI, and native initialization plus authorized end-to-end traffic tests must still be performed on physical Android devices. Separate engine APKs do not satisfy the product requirement.
 
 ## Release gates still required
 
