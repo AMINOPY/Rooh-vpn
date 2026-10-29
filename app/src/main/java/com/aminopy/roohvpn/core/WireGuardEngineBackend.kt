@@ -161,6 +161,10 @@ object DefaultEngineRegistry {
         val backends = mutableListOf<EngineBackend>(WireGuardEngineBackend(appContext))
         when (com.aminopy.roohvpn.BuildConfig.FLAVOR) {
             "singbox" -> backends += SingBoxEngineBackend(appContext)
+            "multi" -> {
+                backends += XrayEngineBackend(appContext)
+                backends += SingBoxEngineBackend(appContext)
+            }
             else -> backends += XrayEngineBackend(appContext)
         }
         return EngineRegistry(backends)
