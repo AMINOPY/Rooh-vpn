@@ -928,20 +928,24 @@ class MainActivity : Activity() {
         val cdnIp = cdnIpInput.text.toString().trim().ifEmpty { null }
         val host = hostInput.text.toString().trim().ifEmpty { null }
         val hasTransportOverrides = sni != null || cdnIp != null || host != null
-        if (engine != EngineId.XRAY && hasTransportOverrides) {
+        if (engine != EngineId.XRAY && engine != EngineId.SING_BOX && hasTransportOverrides) {
             source.fill(0)
-            lastStatus = "SNI/CDN overrides apply only to Xray profiles. Clear these fields for WireGuard."
+            lastStatus = "SNI/CDN overrides are supported only for Xray and sing-box profiles."
             renderState()
             return
         }
-        val options = if (engine == EngineId.XRAY) {
-            com.aminopy.roohvpn.core.EngineLaunchOptions(
+        val options = when (engine) {
+            EngineId.XRAY -> com.aminopy.roohvpn.core.EngineLaunchOptions(
                 xraySni = sni,
                 xrayCdnEdgeIp = cdnIp,
                 xrayHostHeader = host
             )
-        } else {
-            com.aminopy.roohvpn.core.EngineLaunchOptions()
+            EngineId.SING_BOX -> com.aminopy.roohvpn.core.EngineLaunchOptions(
+                singBoxSni = sni,
+                singBoxCdnEdgeIp = cdnIp,
+                singBoxHostHeader = host
+            )
+            else -> com.aminopy.roohvpn.core.EngineLaunchOptions()
         }
 
         var configurationToConnect = source
