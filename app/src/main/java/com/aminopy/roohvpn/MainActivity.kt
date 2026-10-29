@@ -123,7 +123,11 @@ class MainActivity : Activity() {
 
         val actionsCard = card()
         actionsCard.addView(sectionHeading("PROFILE WORKSPACE"), matchWrap())
-        val flavorLabel = if (BuildConfig.FLAVOR == "singbox") "sing-box JSON + WireGuard" else "Xray JSON + WireGuard"
+        val flavorLabel = when (BuildConfig.FLAVOR) {
+            "singbox" -> "sing-box JSON + WireGuard"
+            "multi" -> "Xray + sing-box + WireGuard (experimental)"
+            else -> "Xray JSON + WireGuard"
+        }
         val profileHint = TextView(this).apply {
             text = "Supported in this build: $flavorLabel. Profiles are not generated automatically."
             textSize = 13f
@@ -436,10 +440,10 @@ class MainActivity : Activity() {
         // This cannot prove native-engine compatibility or remote reachability.
         val structuralFailure = when (classification.format) {
             ImportedProfileFormat.XRAY_JSON ->
-                if (BuildConfig.FLAVOR == "xray") com.aminopy.roohvpn.core.XrayProfilePreflight.validate(config)
+                if (BuildConfig.FLAVOR == "xray" || BuildConfig.FLAVOR == "multi") com.aminopy.roohvpn.core.XrayProfilePreflight.validate(config)
                 else EngineFailure("WRONG_APK_FLAVOR", "Xray profiles require the Xray-flavor APK.", false)
             ImportedProfileFormat.SING_BOX_JSON ->
-                if (BuildConfig.FLAVOR == "singbox") com.aminopy.roohvpn.core.SingBoxProfilePreflight.validate(config)
+                if (BuildConfig.FLAVOR == "singbox" || BuildConfig.FLAVOR == "multi") com.aminopy.roohvpn.core.SingBoxProfilePreflight.validate(config)
                 else EngineFailure("WRONG_APK_FLAVOR", "sing-box profiles require the sing-box-flavor APK.", false)
             ImportedProfileFormat.WIREGUARD -> null // Native parser validates at connect time.
             else -> null
@@ -712,13 +716,13 @@ class MainActivity : Activity() {
             val engine = when (classification.format) {
                 ImportedProfileFormat.WIREGUARD -> EngineId.WIREGUARD
                 ImportedProfileFormat.XRAY_JSON -> {
-                    if (BuildConfig.FLAVOR != "xray" ||
+                    if ((BuildConfig.FLAVOR != "xray" && BuildConfig.FLAVOR != "multi") ||
                         com.aminopy.roohvpn.core.XrayProfilePreflight.validate(bytes) != null) {
                         null
                     } else EngineId.XRAY
                 }
                 ImportedProfileFormat.SING_BOX_JSON -> {
-                    if (BuildConfig.FLAVOR != "singbox" ||
+                    if ((BuildConfig.FLAVOR != "singbox" && BuildConfig.FLAVOR != "multi") ||
                         com.aminopy.roohvpn.core.SingBoxProfilePreflight.validate(bytes) != null) {
                         null
                     } else EngineId.SING_BOX
@@ -823,10 +827,10 @@ class MainActivity : Activity() {
                     lastStatus = "WireGuard profile loaded in memory only; the private key is not saved."
                 }
                 ImportedProfileFormat.XRAY_JSON -> {
-                    if (BuildConfig.FLAVOR != "xray") {
+                    if (BuildConfig.FLAVOR != "xray" && BuildConfig.FLAVOR != "multi") {
                         importedBytes!!.fill(0)
                         importedBytes = null
-                        lastStatus = "This APK packages sing-box; use the Xray-flavor APK for Xray profiles."
+                        lastStatus = "This APK packages sing-box; use the Xray or experimental multi-engine APK for Xray profiles."
                         renderState()
                         return
                     }
@@ -842,10 +846,10 @@ class MainActivity : Activity() {
                     lastStatus = "Xray profile loaded in memory only; connection requires a trusted server profile."
                 }
                 ImportedProfileFormat.SING_BOX_JSON -> {
-                    if (BuildConfig.FLAVOR != "singbox") {
+                    if (BuildConfig.FLAVOR != "singbox" && BuildConfig.FLAVOR != "multi") {
                         importedBytes!!.fill(0)
                         importedBytes = null
-                        lastStatus = "This APK packages Xray; use the singbox-flavor APK for sing-box profiles."
+                        lastStatus = "This APK packages Xray; use the sing-box or experimental multi-engine APK for sing-box profiles."
                         renderState()
                         return
                     }
