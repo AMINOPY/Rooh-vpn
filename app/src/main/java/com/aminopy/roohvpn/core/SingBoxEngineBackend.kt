@@ -64,6 +64,10 @@ class SingBoxEngineBackend(context: Context) : EngineBackend {
         configuration: ByteArray,
         options: EngineLaunchOptions
     ): EngineFailure? {
+        if (options.hasXrayTransportOverrides()) {
+            configuration.fill(0)
+            return EngineFailure("ENGINE_OPTION_UNSUPPORTED", "Xray transport overrides cannot be applied to a sing-box profile.", false)
+        }
         if (!options.hasSingBoxTransportOverrides()) return start(configuration)
         validate(configuration, options)?.let {
             configuration.fill(0)
@@ -90,7 +94,11 @@ class SingBoxEngineBackend(context: Context) : EngineBackend {
             return EngineFailure("SING_BOX_TRANSPORT_OVERRIDE_REJECTED", "The profile could not be adapted.", false)
         }
         configuration.fill(0)
-        return SingBoxVpnService.start(appContext, adapted)
+        return try {
+            SingBoxVpnService.start(appContext, adapted)
+        } finally {
+            adapted.fill(0)
+        }
     }
 
     override fun status(): EngineStatus = EngineStatus(
