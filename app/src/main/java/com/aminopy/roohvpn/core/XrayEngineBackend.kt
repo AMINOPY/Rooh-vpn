@@ -55,7 +55,14 @@ class XrayEngineBackend(context: Context) : EngineBackend {
             hostHeader = options.xrayHostHeader
         )
         val transformed = XrayCdnProfileAdapter.apply(configuration, overrides)
-        if (!transformed.isSuccess) {
+        val adaptationSucceeded = try {
+            transformed.isSuccess
+        } finally {
+            // The adapted profile contains endpoint and authentication material.
+            // This validator only needs the success flag, never the copied bytes.
+            transformed.configuration?.fill(0)
+        }
+        if (!adaptationSucceeded) {
             return EngineFailure(
                 code = "XRAY_TRANSPORT_OVERRIDE_REJECTED",
                 safeMessage = "The SNI/CDN options are invalid or incompatible with this Xray profile.",
