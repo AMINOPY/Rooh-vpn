@@ -33,12 +33,20 @@ object SingBoxProfilePreflight {
             var hasUsableOutbound = false
             for (index in 0 until outbounds.length()) {
                 val outbound = outbounds.optJSONObject(index) ?: return invalid()
-                val type = outbound.optString("type").trim()
-                if (type.isEmpty()) return invalid()
+                val rawType = outbound.opt("type")
+                if (rawType !is String || rawType.isBlank()) return invalid()
+                val type = rawType.trim()
                 if (type in setOf("selector", "urltest", "direct", "block", "dns", "wireguard", "tailscale", "tor")) {
                     hasUsableOutbound = true
-                } else if (outbound.optString("server").isNotBlank() && outbound.optInt("server_port", 0) in 1..65535) {
-                    hasUsableOutbound = true
+                } else {
+                    val server = outbound.opt("server")
+                    val rawPort = outbound.opt("server_port")
+                    val port = (rawPort as? Number)?.toDouble()
+                    if (server is String && server.isNotBlank() &&
+                        port != null && port.isFinite() && port % 1.0 == 0.0 && port in 1.0..65535.0
+                    ) {
+                        hasUsableOutbound = true
+                    }
                 }
             }
             if (hasUsableOutbound) null else invalid()
