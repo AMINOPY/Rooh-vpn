@@ -18,7 +18,7 @@ jobs:
   android:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repository and core submodules
         uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -47,16 +47,30 @@ jobs:
           git apply ../patches/xray/0002-propagate-xray-shutdown-errors.patch
           go test ./...
 
-      - name: Build Xray Android AAR
+      - name: Fetch pinned sing-box source
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v1.14.0 https://github.com/SagerNet/sing-box.git sing-box-source
+          test -f sing-box-source/experimental/libbox/main.go
+
+      - name: Build a single combined Go mobile AAR
         working-directory: xray-core
         run: |
           set -euo pipefail
-          go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20261011034528-197770444867
+          go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.8
           export PATH="$PATH:$(go env GOPATH)/bin"
           gomobile init
+          go work init . ../sing-box-source
           mkdir -p ../app/libs
-          gomobile bind -v -target=android -androidapi 26 -javapkg=com.aminopy.roohvpn.xray -trimpath -ldflags="-s -w -buildid= -checklinkname=0" -o ../app/libs/xray-core.aar ./
-          test -s ../app/libs/xray-core.aar
+          # Bind both public APIs into one AAR. This creates one gomobile
+          # Java runtime and one native library instead of colliding go.Seq
+          # classes from two independently-built AARs.
+          gomobile bind -v -target=android -androidapi 26 \
+            -javapkg=io.nekohasekai -libname=box \
+            -trimpath -ldflags="-s -w -buildid= -checklinkname=0" \
+            -o ../app/libs/roohvpn-core.aar \
+            ./ github.com/sagernet/sing-box/experimental/libbox
+          test -s ../app/libs/roohvpn-core.aar
 
       - name: Package Xray routing databases
         run: |
@@ -68,25 +82,15 @@ jobs:
           cp xray-core/assets/geosite.dat app/src/main/assets/geosite.dat
           sha256sum app/src/main/assets/geoip.dat app/src/main/assets/geosite.dat
 
-      - name: Record Xray AAR metadata
+      - name: Record unified core AAR metadata
         run: |
           set -euo pipefail
           {
-            echo "Artifact: app/libs/xray-core.aar"
-            sha256sum app/libs/xray-core.aar
-            du -h app/libs/xray-core.aar
-          } > app/libs/xray-core-aar-report.txt
-          cat app/libs/xray-core-aar-report.txt
-
-      - name: Upload standalone Xray AAR
-        uses: actions/upload-artifact@v4
-        with:
-          name: roohvpn-xray-core-aar
-          path: |
-            app/libs/xray-core.aar
-            app/libs/xray-core-aar-report.txt
-          if-no-files-found: error
-          retention-days: 7
+            echo "Artifact: app/libs/roohvpn-core.aar"
+            sha256sum app/libs/roohvpn-core.aar
+            du -h app/libs/roohvpn-core.aar
+          } > app/libs/roohvpn-core-aar-report.txt
+          cat app/libs/roohvpn-core-aar-report.txt
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -107,58 +111,54 @@ jobs:
       - name: Test PG CORE Android library
         run: gradle :pg-core-android:testDebugUnitTest
 
-      - name: Assemble supported single-engine APKs
-        run: gradle :app:assembleXrayDebug :app:assembleSingboxDebug
+      - name: Assemble the one RØH VPN APK
+        run: gradle :app:assembleDebug
 
-      - name: Verify engine APK contents
+      - name: Verify the unified APK
         shell: bash
         run: |
           set -euo pipefail
-          xray_apk=app/build/outputs/apk/xray/debug/app-xray-debug.apk
-          singbox_apk=app/build/outputs/apk/singbox/debug/app-singbox-debug.apk
-          test -s "$xray_apk"
-          test -s "$singbox_apk"
-          unzip -Z1 "$xray_apk" > /tmp/xray-apk-entries.txt
-          unzip -Z1 "$singbox_apk" > /tmp/singbox-apk-entries.txt
-          grep -Fxq 'lib/arm64-v8a/libgojni.so' /tmp/xray-apk-entries.txt
-          grep -Fxq 'lib/arm64-v8a/libbox.so' /tmp/singbox-apk-entries.txt
-          grep -Eq '^lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^/]+[.]so$' /tmp/xray-apk-entries.txt
-          grep -Eq '^lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^/]+[.]so$' /tmp/singbox-apk-entries.txt
-          grep -Fxq 'assets/geoip.dat' /tmp/xray-apk-entries.txt
-          grep -Fxq 'assets/geosite.dat' /tmp/xray-apk-entries.txt
-          echo "Xray and sing-box native runtime checks passed."
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$apk"
+          unzip -Z1 "$apk" > /tmp/apk-entries.txt
+          grep -Fxq 'lib/arm64-v8a/libbox.so' /tmp/apk-entries.txt
+          grep -Fxq 'assets/geoip.dat' /tmp/apk-entries.txt
+          grep -Fxq 'assets/geosite.dat' /tmp/apk-entries.txt
+          echo "Unified APK contains one combined Go runtime and Xray routing databases."
+          sha256sum "$apk"
 
-      - name: Verify isolated Go mobile runtimes
+      - name: Run Android unit tests
+        run: gradle :app:testDebugUnitTest
+
+      - name: Upload single APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: roohvpn-unified-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Create final ZIP bundle (APK + source tree)
         shell: bash
         run: |
           set -euo pipefail
-          gradle :app:dependencies --configuration xrayDebugRuntimeClasspath > /tmp/xray-runtime-deps.txt
-          gradle :app:dependencies --configuration singboxDebugRuntimeClasspath > /tmp/singbox-runtime-deps.txt
-          if grep -qi 'com.github.singbox-android:libbox' /tmp/xray-runtime-deps.txt; then
-            echo "Xray flavor must not package sing-box libbox."
-            exit 1
-          fi
-          grep -qi 'com.github.singbox-android:libbox' /tmp/singbox-runtime-deps.txt
-          echo "Single-engine runtime isolation checks passed. Combined multi-engine packaging is tracked separately until the gomobile runtime collision is resolved."
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/ROH-VPN-unified-debug.apk
+          cp README.md dist/README.md
+          cp docs/ROH_ENGINE_FUSION_ARCHITECTURE.md dist/ROH_ENGINE_FUSION_ARCHITECTURE.md
+          sha256sum dist/ROH-VPN-unified-debug.apk > dist/SHA256SUMS.txt
+          zip -qr dist/ROH-VPN-final-bundle.zip \
+            dist/ROH-VPN-unified-debug.apk dist/README.md \
+            dist/ROH_ENGINE_FUSION_ARCHITECTURE.md dist/SHA256SUMS.txt
+          test -s dist/ROH-VPN-final-bundle.zip
 
-      - name: Run supported Android unit-test variants
-        run: gradle :app:testXrayDebugUnitTest :app:testSingboxDebugUnitTest
-
-      - name: Upload Xray debug APK
+      - name: Upload final ZIP bundle
         uses: actions/upload-artifact@v4
         with:
-          name: roohvpn-xray-debug-apk
-          path: app/build/outputs/apk/xray/debug/app-xray-debug.apk
+          name: roohvpn-final-zip-bundle
+          path: dist/ROH-VPN-final-bundle.zip
           if-no-files-found: error
-          retention-days: 7
-
-      - name: Upload sing-box debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: roohvpn-singbox-debug-apk
-          path: app/build/outputs/apk/singbox/debug/app-singbox-debug.apk
-          if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
 
   control-plane:
     runs-on: ubuntu-latest
