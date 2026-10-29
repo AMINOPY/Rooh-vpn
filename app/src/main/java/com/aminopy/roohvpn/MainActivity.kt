@@ -18,6 +18,7 @@ import android.widget.FrameLayout
 import android.widget.ScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Switch
 import com.aminopy.roohvpn.core.EngineFailure
 import com.aminopy.roohvpn.core.BoundedProfileReader
 import com.aminopy.roohvpn.core.EngineConfigClassifier
@@ -47,6 +48,7 @@ class MainActivity : Activity() {
     private lateinit var sniInput: EditText
     private lateinit var cdnIpInput: EditText
     private lateinit var hostInput: EditText
+    private lateinit var tlsRecordFragmentationSwitch: Switch
     private val worker: ExecutorService = Executors.newSingleThreadExecutor()
     private var pendingConfiguration: ByteArray? = null
     private var pendingEngineId: EngineId? = null
@@ -160,6 +162,19 @@ class MainActivity : Activity() {
         optionsCard.addView(sniInput, matchWrap())
         optionsCard.addView(cdnIpInput, marginParams(top = 5))
         optionsCard.addView(hostInput, marginParams(top = 5))
+        tlsRecordFragmentationSwitch = Switch(this).apply {
+            text = "TLS record fragmentation (sing-box only)"
+            textSize = 13f
+            setTextColor(Color.rgb(225, 237, 251))
+            isChecked = false
+        }
+        optionsCard.addView(tlsRecordFragmentationSwitch, marginParams(top = 12))
+        optionsCard.addView(TextView(this).apply {
+            text = "Optional. Adds record_fragment to TLS-enabled sing-box outbounds. May reduce performance and may not work with every profile or transport."
+            textSize = 11f
+            setTextColor(Color.rgb(157, 174, 197))
+            setLineSpacing(dp(2).toFloat(), 1f)
+        }, marginParams(top = 3))
 
         val engineCard = card()
         engineCard.addView(sectionHeading("ENGINE STATUS"), matchWrap())
@@ -518,10 +533,12 @@ class MainActivity : Activity() {
         listOf(sniInput, cdnIpInput, hostInput).forEach { field ->
             (field.parent as? android.view.ViewGroup)?.removeView(field)
         }
+        (tlsRecordFragmentationSwitch.parent as? android.view.ViewGroup)?.removeView(tlsRecordFragmentationSwitch)
         options.addView(sectionHeading("OPTIONAL VALUES"), matchWrap())
         options.addView(sniInput, marginParams(top = 8))
         options.addView(cdnIpInput, marginParams(top = 6))
         options.addView(hostInput, marginParams(top = 6))
+        options.addView(tlsRecordFragmentationSwitch, marginParams(top = 12))
         options.addView(actionButton("Clear optional values", false) {
             sniInput.text.clear()
             cdnIpInput.text.clear()
@@ -927,15 +944,37 @@ class MainActivity : Activity() {
             com.aminopy.roohvpn.core.EngineLaunchOptions()
         }
 
+        var configurationToConnect = source
+        if (tlsRecordFragmentationSwitch.isChecked) {
+            if (engine != EngineId.SING_BOX) {
+                source.fill(0)
+                lastStatus = "TLS record fragmentation is currently available only for sing-box profiles."
+                renderState()
+                return
+            }
+            val fragmented = com.aminopy.roohvpn.core.SingBoxTlsFragmentation
+                .enableRecordFragmentation(source)
+            if (fragmented == null) {
+                source.fill(0)
+                lastStatus = "No enabled TLS outbound was found. Check the profile or turn fragmentation off."
+                renderState()
+                return
+            }
+            source.fill(0)
+            configurationToConnect = fragmented.configuration
+            lastStatus = "TLS record fragmentation enabled for ${fragmented.modifiedOutbounds} TLS outbound(s)."
+        }
+
         operationInProgress = true
-        lastStatus = "Starting $engine…"
+        if (!tlsRecordFragmentationSwitch.isChecked) lastStatus = "Starting $engine…"
         renderState()
         worker.execute {
             val failure = try {
-                (application as RoohVpnApplication).connectionCoordinator.connect(engine, source, options)
+                (application as RoohVpnApplication).connectionCoordinator.connect(engine, configurationToConnect, options)
             } catch (_: Exception) {
-                source.fill(0)
                 EngineFailure("CONNECTION_FAILED", "Could not start the VPN connection.", true)
+            } finally {
+                configurationToConnect.fill(0)
             }
             runOnUiThread {
                 operationInProgress = false
