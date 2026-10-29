@@ -18,3 +18,30 @@ class EngineRegistry(backends: Collection<EngineBackend> = emptyList()) {
 
     fun backend(id: EngineId): EngineBackend? = byId[id]
 }
+
+/**
+ * Builds the set of engines actually packaged in this APK. Aether and PG CORE
+ * are intentionally omitted until they have verified end-to-end packet
+ * forwarding implementations; UI visibility must not imply a working tunnel.
+ */
+object DefaultEngineRegistry {
+    fun create(context: android.content.Context): EngineRegistry {
+        val appContext = context.applicationContext
+        val backends = when (com.aminopy.roohvpn.BuildConfig.FLAVOR) {
+            "singbox" -> listOf(
+                SingBoxEngineBackend(appContext),
+                WireGuardEngineBackend(appContext)
+            )
+            "multi" -> listOf(
+                XrayEngineBackend(appContext),
+                SingBoxEngineBackend(appContext),
+                WireGuardEngineBackend(appContext)
+            )
+            else -> listOf(
+                XrayEngineBackend(appContext),
+                WireGuardEngineBackend(appContext)
+            )
+        }
+        return EngineRegistry(backends)
+    }
+}
