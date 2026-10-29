@@ -83,10 +83,12 @@ class EncryptedProfileStore(context: Context) {
         }
     }
 
+    /** List identifiers without decrypting every saved profile into memory. */
+    fun listProfileIds(): List<String> =
+        preferences.getStringSet(KEY_IDS, emptySet()).orEmpty().sorted()
+
     fun listProfiles(): List<StoredProfile> =
-        preferences.getStringSet(KEY_IDS, emptySet()).orEmpty()
-            .sorted()
-            .mapNotNull(::load)
+        listProfileIds().mapNotNull(::load)
 
     fun delete(profileId: String) {
         val prefix = keyPrefix(profileId)
