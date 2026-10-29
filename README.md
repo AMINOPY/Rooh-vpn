@@ -1,6 +1,6 @@
 # RØH VPN
 
-RØH VPN is an Android VPN client project focused first on a reliable, testable networking core. The initial milestone is **core integration and connection correctness**; visual redesign is explicitly deferred.
+RØH VPN is an Android VPN client project focused on a reliable, testable networking core and a clear, consent-driven user interface. The current feature branch includes a dark dashboard and dedicated Home, Profiles, Tools, Engines, and Settings sections.
 
 ## Project direction
 
@@ -17,7 +17,9 @@ RØH VPN is an Android VPN client project focused first on a reliable, testable 
 - WireGuard adapter using the official Android tunnel library (pinned dependency), including bounded profile parsing and safe error mapping.
 - Encrypted local profile storage backed by Android Keystore AES-GCM.
 - Provider-backed server-directory interface, hardened HTTPS discovery/profile clients, bounded concurrent reachability probes, deterministic selection, and auto-connect orchestration boundary.
-- Explicit Android VPN-consent flow and WireGuard profile import/connect/disconnect controls; imported configuration is bounded and held only in memory by the screen.
+- Explicit Android VPN-consent flow and profile import/connect/disconnect controls; imports are bounded to 1 MiB, unsupported formats are rejected, and active profile bytes are cleared on disconnect/activity teardown.
+- Dedicated bottom-navigation sections for Home, Profiles, Tools, Engines, and Settings; profile/engine summaries refresh after state changes, and Android Back returns to Home from secondary sections.
+- Encrypted saved-profile management with duplicate fingerprint checks, safe load validation, and explicit delete confirmation.
 - Cloudflare Worker + D1 control-plane scaffold with JWT-gated profile requests, HTTPS provisioner handoff, 15-minute maximum profile lifetime, empty-by-default server directory, and Node tests.
 - JVM unit tests and CI workflow that builds a debug APK and runs tests.
 - Core integration, server-discovery, third-party licensing, engine capability, and Aether security review documents.
