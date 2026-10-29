@@ -13,6 +13,8 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        // Preserve the existing multi-engine UI/registry logic in the single APK.
+        buildConfigField("String", "FLAVOR", "\"multi\"")
     }
 
     compileOptions {
