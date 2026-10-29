@@ -52,3 +52,7 @@ Proton VPN's free service is not a generic public server pool. RØH VPN will not
 ## Current status
 
 **Development stage — not a release-ready VPN.** The `multi` flavor is an experimental attempt at one APK containing Xray, sing-box, and WireGuard. Aether and PG CORE are not operational data planes, and no physical-device traffic/leak validation has been recorded. CI verifies compilation, tests, and packaged library presence only—not live tunnel routing or leak resistance. The control plane is not deployed and its server directory is empty by default. Keep the pull request in draft until device-validation gates are completed.
+
+### Optional TLS record fragmentation
+
+The Android app includes an opt-in `TLS record fragmentation (sing-box only)` setting. When enabled, it adds `tls.record_fragment: true` only to outbound entries whose `tls.enabled` is already `true`; it does not change the imported profile bytes held by the UI. It fails closed if no enabled TLS outbound is found. The option is off by default and may reduce performance or be incompatible with some profiles/transports. This config transform is not proof that a connection works or that filtering behavior changes; validate against an authorized test endpoint and disable it if connections become slower or fail.
