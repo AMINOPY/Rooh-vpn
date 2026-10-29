@@ -16,7 +16,7 @@ interface EngineBackend {
 
     /** Engines may override this overload to apply supported launch-time options. */
     fun validate(configuration: ByteArray, options: EngineLaunchOptions): EngineFailure? {
-        if (options.hasXrayTransportOverrides()) {
+        if (options.hasAnyTransportOverrides()) {
             return EngineFailure(
                 code = "ENGINE_OPTION_UNSUPPORTED",
                 safeMessage = "This engine does not support the requested transport overrides.",
