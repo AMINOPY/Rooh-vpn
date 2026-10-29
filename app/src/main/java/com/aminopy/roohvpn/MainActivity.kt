@@ -259,6 +259,15 @@ class MainActivity : Activity() {
         renderState()
     }
 
+    @Deprecated("Use the navigation bar to move between app sections.")
+    override fun onBackPressed() {
+        if (::currentPage.isInitialized && currentPage != "home") {
+            navigateTo("home")
+        } else {
+            super.onBackPressed()
+        }
+    }
+
     private fun navigateTo(destination: String) {
         currentPage = destination
         contentHost.removeAllViews()
