@@ -27,6 +27,13 @@ class SingBoxProfilePreflightTest {
         assertEquals("SING_BOX_CONFIG_INVALID", validate("""{"outbounds":[{"server":"example.invalid","server_port":443}]}""")?.code)
     }
 
+    @Test fun rejectsMalformedUtf8WithoutEchoingProfileData() {
+        val malformed = byteArrayOf(0x7B, 0x22, 0xC3.toByte(), 0x28, 0x22, 0x7D)
+        val failure = SingBoxProfilePreflight.validate(malformed)
+        assertEquals("SING_BOX_CONFIG_INVALID", failure?.code)
+        org.junit.Assert.assertFalse(failure?.safeMessage?.contains("C3") == true)
+    }
+
     @Test fun rejectsEmptyAndOversizedProfiles() {
         assertEquals("SING_BOX_CONFIG_INVALID", SingBoxProfilePreflight.validate(byteArrayOf())?.code)
         val oversized = ByteArray(1024 * 1024 + 1) { ' '.code.toByte() }
