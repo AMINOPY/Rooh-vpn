@@ -147,9 +147,13 @@ jobs:
           cp README.md dist/README.md
           cp docs/ROH_ENGINE_FUSION_ARCHITECTURE.md dist/ROH_ENGINE_FUSION_ARCHITECTURE.md
           sha256sum dist/ROH-VPN-unified-debug.apk > dist/SHA256SUMS.txt
-          zip -qr dist/ROH-VPN-final-bundle.zip \
-            dist/ROH-VPN-unified-debug.apk dist/README.md \
-            dist/ROH_ENGINE_FUSION_ARCHITECTURE.md dist/SHA256SUMS.txt
+          # Bundle the checked-out project and engine submodule sources, plus
+          # the combined AAR and one APK. Exclude VCS metadata and build caches.
+          zip -qr dist/ROH-VPN-final-bundle.zip . \
+            -x './.git/*' '*/.git/*' './**/.git/*' \
+               './.gradle/*' '*/.gradle/*' './**/.gradle/*' \
+               '*/build/*' './**/build/*' \
+               './dist/ROH-VPN-final-bundle.zip' '*/.DS_Store'
           test -s dist/ROH-VPN-final-bundle.zip
 
       - name: Upload final ZIP bundle
