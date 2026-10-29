@@ -109,13 +109,21 @@ object ProfileCatalog {
             .values
             .map { duplicates ->
                 duplicates.maxWithOrNull(
-                    compareBy<ProfileSummary> { it.latencyMeasuredAtEpochMs ?: -1L }
-                        .thenBy { if (it.measuredLatencyMs != null) 1 else 0 }
+                    compareBy<ProfileSummary> {
+                        if (it.measuredLatencyMs != null && it.latencyMeasuredAtEpochMs != null) 1 else 0
+                    }
+                        .thenBy {
+                            if (it.measuredLatencyMs != null && it.latencyMeasuredAtEpochMs != null) {
+                                it.latencyMeasuredAtEpochMs
+                            } else {
+                                -1L
+                            }
+                        }
                         .thenBy { if (it.isValid) 1 else 0 }
                         .thenBy { it.id }
                 )!!
             }
-            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.displayName }.thenBy { it.id })
+            .sortedWith(compareBy<ProfileSummary, String>(String.CASE_INSENSITIVE_ORDER) { it.displayName }.thenBy { it.id })
     }
 
     /** Attach a real measurement; invalid or untested results are not fabricated. */
