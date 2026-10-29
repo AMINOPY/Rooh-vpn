@@ -9,10 +9,10 @@ import android.content.Intent
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
-import com.aminopy.roohvpn.xray.libv2ray.CoreCallbackHandler
-import com.aminopy.roohvpn.xray.libv2ray.CoreController
-import com.aminopy.roohvpn.xray.libv2ray.Libv2ray
-import com.aminopy.roohvpn.xray.libv2ray.SocketProtector
+import io.nekohasekai.libv2ray.CoreCallbackHandler
+import io.nekohasekai.libv2ray.CoreController
+import io.nekohasekai.libv2ray.Libv2ray
+import io.nekohasekai.libv2ray.SocketProtector
 import com.aminopy.roohvpn.MainActivity
 import com.aminopy.roohvpn.core.EngineFailure
 import com.aminopy.roohvpn.core.EngineLaunchOptions
