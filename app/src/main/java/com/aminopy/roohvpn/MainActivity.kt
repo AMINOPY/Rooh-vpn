@@ -10,6 +10,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.text.InputType
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
@@ -256,6 +257,175 @@ class MainActivity : Activity() {
         setContentView(shell)
         navigateTo("home")
         renderState()
+    }
+
+    private fun navigateTo(destination: String) {
+        currentPage = destination
+        contentHost.removeAllViews()
+        val content: View = when (destination) {
+            "home" -> homeScroll
+            "profiles" -> buildProfilesPage()
+            "tools" -> buildToolsPage()
+            "engines" -> buildEnginesPage()
+            "settings" -> buildSettingsPage()
+            else -> homeScroll
+        }
+        contentHost.addView(content, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        navButtons.forEach { (key, button) ->
+            val selected = key == destination
+            button.setTextColor(if (selected) Color.rgb(103, 232, 249) else Color.rgb(157, 174, 197))
+            button.background = roundedSurface(
+                if (selected) Color.rgb(20, 44, 62) else Color.TRANSPARENT,
+                dp(12),
+                if (selected) Color.rgb(44, 91, 112) else Color.TRANSPARENT
+            )
+        }
+        renderState()
+    }
+
+    private fun pageScaffold(titleText: String, subtitleText: String): LinearLayout {
+        val page = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(20), dp(20), dp(24))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.rgb(8, 15, 29), Color.rgb(13, 25, 43))
+            )
+        }
+        page.addView(TextView(this).apply {
+            text = "R Ø H   /   VPN"
+            textSize = 12f
+            letterSpacing = 0.15f
+            setTextColor(Color.rgb(103, 232, 249))
+            typeface = Typeface.DEFAULT_BOLD
+        }, matchWrap())
+        page.addView(TextView(this).apply {
+            text = titleText
+            textSize = 28f
+            setTextColor(Color.rgb(241, 247, 255))
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        }, marginParams(top = 10))
+        page.addView(TextView(this).apply {
+            text = subtitleText
+            textSize = 13f
+            setTextColor(Color.rgb(157, 174, 197))
+            setLineSpacing(dp(3).toFloat(), 1f)
+        }, marginParams(top = 6, bottom = 18))
+        return page
+    }
+
+    private fun pageScroll(page: LinearLayout): ScrollView = ScrollView(this).apply {
+        isFillViewport = true
+        addView(page, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+    }
+
+    private fun infoCard(titleText: String, bodyText: String): LinearLayout = card().apply {
+        addView(sectionHeading(titleText), matchWrap())
+        addView(TextView(this@MainActivity).apply {
+            text = bodyText
+            textSize = 14f
+            setTextColor(Color.rgb(197, 211, 230))
+            setLineSpacing(dp(4).toFloat(), 1f)
+        }, marginParams(top = 9))
+    }
+
+    private fun buildProfilesPage(): View {
+        val page = pageScaffold("Profiles", "Import, load, store and remove your own trusted VPN profiles.")
+        val profileSummary = if (pendingEngineId != null && pendingConfiguration != null) {
+            "Loaded in memory: $pendingEngineId\n$lastStatus"
+        } else {
+            "No profile loaded. Choose a configuration file supplied by a provider you trust."
+        }
+        page.addView(infoCard("CURRENT PROFILE", profileSummary), marginParams(bottom = 12))
+        page.addView(actionButton("＋   Import profile", true) { chooseProfile() }, marginParams(bottom = 8))
+        page.addView(actionButton("▤   Browse saved profiles", false) { showSavedProfiles() }, marginParams(bottom = 8))
+        page.addView(actionButton("▣   Save current profile securely", false) { saveCurrentProfile() }, marginParams(bottom = 8))
+        page.addView(actionButton("⌫   Delete a saved profile", false) { chooseSavedProfileToDelete() }, marginParams(bottom = 12))
+        page.addView(infoCard(
+            "PROFILE SAFETY",
+            "Saved profiles are encrypted at rest with Android Keystore. Unsupported formats are not silently passed to another engine. Never import a profile from a source you do not trust."
+        ), marginParams(bottom = 12))
+        return pageScroll(page)
+    }
+
+    private fun buildToolsPage(): View {
+        val page = pageScaffold("Tools", "Shortcuts and transparent diagnostics for this build.")
+        page.addView(infoCard(
+            "QUICK ACTIONS",
+            "Use a configuration from your own trusted provider. The app does not invent servers or credentials."
+        ), marginParams(bottom = 12))
+        page.addView(actionButton("＋   Import a configuration", true) { chooseProfile() }, marginParams(bottom = 8))
+        page.addView(actionButton("▤   Open saved configurations", false) { showSavedProfiles() }, marginParams(bottom = 8))
+        page.addView(actionButton("◈   View engine readiness", false) { navigateTo("engines") }, marginParams(bottom = 12))
+        page.addView(infoCard(
+            "DIAGNOSTIC HONESTY",
+            "TCP reachability is not a VPN handshake or a speed test. This page does not report fake ping, throughput, DNS safety, or IP-leak results. Tunnel verification requires real measurements and a device test."
+        ), marginParams(bottom = 12))
+        page.addView(infoCard(
+            "NOT YET VERIFIED",
+            "Per-app routing, tunnel chaining, automated speed tests, MTU discovery and DNS/IP leak checks are not represented as completed features in this screen."
+        ), marginParams(bottom = 12))
+        return pageScroll(page)
+    }
+
+    private fun buildEnginesPage(): View {
+        val page = pageScaffold("Engines", "Registered backends are not automatically production-ready tunnels.")
+        val coordinator = (application as RoohVpnApplication).connectionCoordinator
+        val engines = listOf(
+            EngineId.XRAY to "Xray-core",
+            EngineId.SING_BOX to "sing-box",
+            EngineId.WIREGUARD to "WireGuard",
+            EngineId.AETHER to "Aether",
+            EngineId.PG_CORE to "PG CORE"
+        )
+        engines.forEach { (id, label) ->
+            val registered = coordinator.isEngineAvailable(id)
+            val details = (if (registered) "Backend registered." else "Backend not integrated in this build.") +
+                if (id == EngineId.XRAY || id == EngineId.SING_BOX || id == EngineId.WIREGUARD) {
+                    "\nReal-device TCP/UDP/DNS forwarding and leak tests still need verification."
+                } else {
+                    "\nDo not rely on this engine for traffic until a real forwarding backend is implemented and tested."
+                }
+            page.addView(infoCard(label, details), marginParams(bottom = 10))
+        }
+        page.addView(actionButton("←   Back to Home", false) { navigateTo("home") }, marginParams(top = 4))
+        return pageScroll(page)
+    }
+
+    private fun buildSettingsPage(): View {
+        val page = pageScaffold("Settings", "Optional transport values should only come from your profile provider.")
+        page.addView(infoCard(
+            "TRANSPORT OVERRIDES",
+            "Keep these blank unless your provider explicitly supplied the values. Incorrect overrides can prevent a connection."
+        ), marginParams(bottom = 12))
+        page.addView(optionsCardForSettings(), marginParams(bottom = 12))
+        page.addView(infoCard(
+            "PRIVACY & SECURITY",
+            "Saved profiles use Android Keystore encryption. Avoid sharing profile files because they may contain credentials."
+        ), marginParams(bottom = 12))
+        page.addView(actionButton("←   Back to Home", false) { navigateTo("home") }, marginParams(top = 4))
+        return pageScroll(page)
+    }
+
+    private fun optionsCardForSettings(): LinearLayout {
+        val options = card()
+        listOf(sniInput, cdnIpInput, hostInput).forEach { field ->
+            (field.parent as? android.view.ViewGroup)?.removeView(field)
+        }
+        options.addView(sectionHeading("OPTIONAL VALUES"), matchWrap())
+        options.addView(sniInput, marginParams(top = 8))
+        options.addView(cdnIpInput, marginParams(top = 6))
+        options.addView(hostInput, marginParams(top = 6))
+        options.addView(actionButton("Clear optional values", false) {
+            sniInput.text.clear()
+            cdnIpInput.text.clear()
+            hostInput.text.clear()
+            lastStatus = "Optional transport overrides cleared."
+            renderState()
+        }, marginParams(top = 10))
+        return options
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
