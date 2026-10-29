@@ -501,12 +501,17 @@ class MainActivity : Activity() {
         )
         engines.forEach { (id, label) ->
             val registered = coordinator.isEngineAvailable(id)
-            val details = (if (registered) "Backend registered." else "Backend not integrated in this build.") +
-                if (id == EngineId.XRAY || id == EngineId.SING_BOX || id == EngineId.WIREGUARD) {
+            val details = when (id) {
+                EngineId.PG_CORE ->
+                    "PG CORE Android module and flow-selection primitives are included. " +
+                    "A real TUN-to-engine packet-forwarding backend and cooperating path endpoints are not installed, " +
+                    "so PG CORE remains disabled for traffic."
+                EngineId.AETHER ->
+                    "A real forwarding backend is not integrated. Do not rely on this engine for traffic."
+                else ->
+                    (if (registered) "Backend registered." else "Backend not integrated in this build.") +
                     "\nReal-device TCP/UDP/DNS forwarding and leak tests still need verification."
-                } else {
-                    "\nDo not rely on this engine for traffic until a real forwarding backend is implemented and tested."
-                }
+            }
             page.addView(infoCard(label, details), marginParams(bottom = 10))
         }
         page.addView(actionButton("←   Back to Home", false) { navigateTo("home") }, marginParams(top = 4))
