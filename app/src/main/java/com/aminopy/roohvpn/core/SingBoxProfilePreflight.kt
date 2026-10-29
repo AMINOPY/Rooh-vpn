@@ -1,6 +1,8 @@
 package com.aminopy.roohvpn.core
 
 import org.json.JSONObject
+import java.nio.ByteBuffer
+import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
 
 /**
@@ -12,7 +14,16 @@ object SingBoxProfilePreflight {
 
     fun validate(configuration: ByteArray): EngineFailure? {
         if (configuration.isEmpty() || configuration.size > MAX_CONFIG_BYTES) return invalid()
-        val source = configuration.toString(StandardCharsets.UTF_8).trim()
+        val source = try {
+            StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(ByteBuffer.wrap(configuration))
+                .toString()
+                .trim()
+        } catch (_: Exception) {
+            return invalid()
+        }
         if (source.isEmpty()) return invalid()
 
         return try {
