@@ -9,7 +9,7 @@ class ProfileCatalogTest {
     private fun profile(
         id: String,
         name: String = id,
-        fingerprint: String = id.padEnd(64, '0').take(64),
+        fingerprint: String = ProfileCatalog.fingerprint(id.toByteArray()),
         latency: Long? = null,
         measuredAt: Long? = null,
         engine: String = "xray",
