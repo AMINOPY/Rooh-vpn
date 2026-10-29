@@ -107,8 +107,8 @@ jobs:
       - name: Test PG CORE Android library
         run: gradle :pg-core-android:testDebugUnitTest
 
-      - name: Assemble Xray and sing-box APKs
-        run: gradle :app:assembleXrayDebug :app:assembleSingboxDebug
+      - name: Assemble Xray, sing-box, and experimental multi-engine APKs
+        run: gradle :app:assembleXrayDebug :app:assembleSingboxDebug :app:assembleMultiDebug
 
       - name: Verify engine APK contents
         shell: bash
@@ -116,12 +116,17 @@ jobs:
           set -euo pipefail
           xray_apk=app/build/outputs/apk/xray/debug/app-xray-debug.apk
           singbox_apk=app/build/outputs/apk/singbox/debug/app-singbox-debug.apk
+          multi_apk=app/build/outputs/apk/multi/debug/app-multi-debug.apk
           test -s "$xray_apk"
           test -s "$singbox_apk"
+          test -s "$multi_apk"
           unzip -Z1 "$xray_apk" > /tmp/xray-apk-entries.txt
           unzip -Z1 "$singbox_apk" > /tmp/singbox-apk-entries.txt
+          unzip -Z1 "$multi_apk" > /tmp/multi-apk-entries.txt
           grep -Fxq 'lib/arm64-v8a/libgojni.so' /tmp/xray-apk-entries.txt
           grep -Fxq 'lib/arm64-v8a/libbox.so' /tmp/singbox-apk-entries.txt
+          grep -Fxq 'lib/arm64-v8a/libgojni.so' /tmp/multi-apk-entries.txt
+          grep -Fxq 'lib/arm64-v8a/libbox.so' /tmp/multi-apk-entries.txt
           grep -Eq '^lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^/]+[.]so$' /tmp/xray-apk-entries.txt
           grep -Eq '^lib/(arm64-v8a|armeabi-v7a|x86_64|x86)/[^/]+[.]so$' /tmp/singbox-apk-entries.txt
           grep -Fxq 'assets/geoip.dat' /tmp/xray-apk-entries.txt
@@ -142,7 +147,7 @@ jobs:
           echo "Go mobile runtime isolation checks passed."
 
       - name: Run Android unit tests
-        run: gradle :app:testXrayDebugUnitTest :app:testSingboxDebugUnitTest
+        run: gradle :app:testXrayDebugUnitTest :app:testSingboxDebugUnitTest :app:testMultiDebugUnitTest
 
       - name: Upload Xray debug APK
         uses: actions/upload-artifact@v4
@@ -157,6 +162,14 @@ jobs:
         with:
           name: roohvpn-singbox-debug-apk
           path: app/build/outputs/apk/singbox/debug/app-singbox-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload experimental multi-engine debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: roohvpn-multi-engine-debug-apk
+          path: app/build/outputs/apk/multi/debug/app-multi-debug.apk
           if-no-files-found: error
           retention-days: 7
 
