@@ -48,15 +48,113 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply {
+
+        window.statusBarColor = Color.rgb(8, 15, 29)
+        window.navigationBarColor = Color.rgb(8, 15, 29)
+        window.decorView.systemUiVisibility = 0
+
+        val page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 48, 32, 32)
+            setPadding(dp(20), dp(18), dp(20), dp(28))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.rgb(8, 15, 29), Color.rgb(13, 25, 43), Color.rgb(8, 15, 29))
+            )
         }
-        status = TextView(this).apply { textSize = 17f }
-        engineStatus = TextView(this).apply {
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            clipToPadding = false
+            setPadding(0, 0, 0, dp(8))
+            addView(page, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+
+        val brand = TextView(this).apply {
+            text = "R Ø H   /   VPN"
+            textSize = 13f
+            letterSpacing = 0.18f
+            setTextColor(Color.rgb(103, 232, 249))
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+        }
+        page.addView(brand, matchWrap())
+        page.addView(space(8), matchWrap())
+
+        val title = TextView(this).apply {
+            text = "Your private\nconnection."
+            textSize = 31f
+            setLineSpacing(dp(1).toFloat(), 1.02f)
+            setTextColor(Color.rgb(241, 247, 255))
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        }
+        page.addView(title, matchWrap())
+        val subtitle = TextView(this).apply {
+            text = "Import a trusted profile, review its engine, then connect."
             textSize = 14f
+            setTextColor(Color.rgb(157, 174, 197))
+        }
+        page.addView(subtitle, marginParams(top = 8, bottom = 20))
+
+        val connectionCard = card()
+        val statusHeading = TextView(this).apply {
+            text = "CONNECTION STATUS"
+            textSize = 11f
+            letterSpacing = 0.12f
+            setTextColor(Color.rgb(103, 232, 249))
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        status = TextView(this).apply {
+            textSize = 15f
+            setTextColor(Color.rgb(231, 239, 250))
+            setLineSpacing(dp(4).toFloat(), 1f)
+        }
+        connectionCard.addView(statusHeading, matchWrap())
+        connectionCard.addView(status, marginParams(top = 10))
+        page.addView(connectionCard, marginParams(bottom = 14))
+
+        val actionsCard = card()
+        actionsCard.addView(sectionHeading("PROFILE WORKSPACE"), matchWrap())
+        val flavorLabel = if (BuildConfig.FLAVOR == "singbox") "sing-box JSON + WireGuard" else "Xray JSON + WireGuard"
+        val profileHint = TextView(this).apply {
+            text = "Supported in this build: $flavorLabel. Profiles are not generated automatically."
+            textSize = 13f
+            setTextColor(Color.rgb(157, 174, 197))
+            setLineSpacing(dp(3).toFloat(), 1f)
+        }
+        actionsCard.addView(profileHint, marginParams(top = 7, bottom = 14))
+
+        importButton = actionButton("＋   Import profile", true) { chooseProfile() }
+        saveProfileButton = actionButton("▣   Save securely", false) { saveCurrentProfile() }
+        savedProfilesButton = actionButton("▤   Saved profiles", false) { showSavedProfiles() }
+        removeProfileButton = actionButton("⌫   Delete saved profile", false) { chooseSavedProfileToDelete() }
+        actionsCard.addView(importButton, matchWrap())
+        actionsCard.addView(saveProfileButton, marginParams(top = 8))
+        actionsCard.addView(savedProfilesButton, marginParams(top = 8))
+        actionsCard.addView(removeProfileButton, marginParams(top = 8))
+        page.addView(actionsCard, marginParams(bottom = 14))
+
+        val optionsCard = card()
+        optionsCard.addView(sectionHeading("OPTIONAL TRANSPORT OVERRIDES"), matchWrap())
+        val optionsHint = TextView(this).apply {
+            text = "Leave these empty unless your provider gave you exact values."
+            textSize = 12f
+            setTextColor(Color.rgb(157, 174, 197))
+        }
+        optionsCard.addView(optionsHint, marginParams(top = 6, bottom = 8))
+        sniInput = themedInput("TLS SNI / REALITY serverName")
+        cdnIpInput = themedInput("CDN edge IP (IPv4 / IPv6)")
+        hostInput = themedInput("HTTP Host / gRPC authority / transport host")
+        optionsCard.addView(sniInput, matchWrap())
+        optionsCard.addView(cdnIpInput, marginParams(top = 5))
+        optionsCard.addView(hostInput, marginParams(top = 5))
+        page.addView(optionsCard, marginParams(bottom = 14))
+
+        val engineCard = card()
+        engineCard.addView(sectionHeading("ENGINE STATUS"), matchWrap())
+        engineStatus = TextView(this).apply {
+            textSize = 13f
+            setTextColor(Color.rgb(197, 211, 230))
+            setLineSpacing(dp(5).toFloat(), 1f)
             text = buildString {
-                append("Engine availability (priority order)\n")
+                append("Availability is not proof of a working tunnel.\n\n")
                 val coordinator = (application as RoohVpnApplication).connectionCoordinator
                 val engines = listOf(
                     EngineId.XRAY to "Xray-core",
@@ -66,72 +164,110 @@ class MainActivity : Activity() {
                     EngineId.PG_CORE to "PG CORE"
                 )
                 engines.forEachIndexed { index, (id, label) ->
-                    val availability = if (coordinator.isEngineAvailable(id)) "backend registered" else "not integrated"
-                    append(index + 1)
-                    append(". ")
+                    val available = coordinator.isEngineAvailable(id)
+                    append(if (available) "●  " else "○  ")
                     append(label)
-                    append(" — ")
-                    append(availability)
-                    if ((id == EngineId.WIREGUARD || id == EngineId.XRAY) &&
-                        coordinator.isEngineAvailable(id)) {
-                        append("; end-to-end traffic not device-verified")
+                    append("  ·  ")
+                    append(if (available) "backend registered" else "not integrated")
+                    if ((id == EngineId.WIREGUARD || id == EngineId.XRAY) && available) {
+                        append("\n    Device traffic still needs real-device verification")
                     }
                     if (index != engines.lastIndex) append("\n")
                 }
             }
         }
-        importButton = Button(this).apply {
-            text = if (BuildConfig.FLAVOR == "singbox") "Import sing-box / WireGuard profile" else "Import Xray / WireGuard profile"
-            setOnClickListener { chooseProfile() }
+        engineCard.addView(engineStatus, marginParams(top = 10))
+        page.addView(engineCard, marginParams(bottom = 14))
+
+        val controls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
         }
-        saveProfileButton = Button(this).apply {
-            text = "Save profile securely"
-            setOnClickListener { saveCurrentProfile() }
+        connectButton = actionButton("Connect", true) { requestVpnConsentAndConnect() }.apply {
+            textSize = 15f
         }
-        savedProfilesButton = Button(this).apply {
-            text = "Saved profiles"
-            setOnClickListener { showSavedProfiles() }
+        disconnectButton = actionButton("Disconnect", false) { disconnect() }.apply {
+            textSize = 15f
         }
-        removeProfileButton = Button(this).apply {
-            text = "Delete saved profile"
-            setOnClickListener { chooseSavedProfileToDelete() }
+        controls.addView(connectButton, LinearLayout.LayoutParams(0, dp(54), 1f).apply {
+            marginEnd = dp(6)
+        })
+        controls.addView(disconnectButton, LinearLayout.LayoutParams(0, dp(54), 1f).apply {
+            marginStart = dp(6)
+        })
+        page.addView(controls, marginParams(bottom = 18))
+
+        val footer = TextView(this).apply {
+            text = "RØH VPN  •  Private by design  •  No fabricated endpoints"
+            textSize = 11f
+            gravity = Gravity.CENTER
+            setTextColor(Color.rgb(112, 132, 158))
         }
-        connectButton = Button(this).apply {
-            text = "Connect"
-            setOnClickListener { requestVpnConsentAndConnect() }
-        }
-        sniInput = EditText(this).apply {
-            hint = "Optional TLS SNI / REALITY serverName"
-            maxLines = 1
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-        }
-        cdnIpInput = EditText(this).apply {
-            hint = "Optional CDN edge IP (literal IPv4 / IPv6)"
-            maxLines = 1
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-        }
-        hostInput = EditText(this).apply {
-            hint = "Optional HTTP Host / gRPC authority / XHTTP or HTTPUpgrade host"
-            maxLines = 1
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-        }
-        disconnectButton = Button(this).apply {
-            text = "Disconnect"
-            setOnClickListener { disconnect() }
-        }
-        root.addView(status, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        root.addView(engineStatus, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        root.addView(importButton)
-        root.addView(saveProfileButton)
-        root.addView(savedProfilesButton)
-        root.addView(removeProfileButton)
-        root.addView(sniInput)
-        root.addView(cdnIpInput)
-        root.addView(hostInput)
-        root.addView(connectButton)
-        root.addView(disconnectButton)
-        setContentView(root)
+        page.addView(footer, matchWrap())
+        setContentView(scroll)
         renderState()
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun matchWrap() = LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+    )
+
+    private fun marginParams(top: Int = 0, bottom: Int = 0) =
+        LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(top)
+            bottomMargin = dp(bottom)
+        }
+
+    private fun space(height: Int) = TextView(this).apply { this.height = dp(height) }
+
+    private fun card() = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(16), dp(16), dp(16), dp(16))
+        background = roundedSurface(Color.rgb(17, 30, 49), dp(20), Color.rgb(39, 57, 81))
+    }
+
+    private fun roundedSurface(fill: Int, radius: Int, stroke: Int) = GradientDrawable().apply {
+        setColor(fill)
+        cornerRadius = radius.toFloat()
+        setStroke(dp(1), stroke)
+    }
+
+    private fun sectionHeading(value: String) = TextView(this).apply {
+        text = value
+        textSize = 11f
+        letterSpacing = 0.12f
+        setTextColor(Color.rgb(170, 190, 216))
+        typeface = Typeface.DEFAULT_BOLD
+    }
+
+    private fun actionButton(label: String, primary: Boolean, onClick: () -> Unit) =
+        Button(this).apply {
+            text = label
+            isAllCaps = false
+            textSize = 14f
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            setTextColor(if (primary) Color.rgb(5, 25, 40) else Color.rgb(225, 237, 251))
+            background = roundedSurface(
+                if (primary) Color.rgb(103, 232, 249) else Color.rgb(25, 43, 66),
+                dp(14),
+                if (primary) Color.rgb(103, 232, 249) else Color.rgb(53, 75, 103)
+            )
+            minHeight = dp(48)
+            setPadding(dp(12), dp(4), dp(12), dp(4))
+            setOnClickListener { onClick() }
+        }
+
+    private fun themedInput(label: String) = EditText(this).apply {
+        hint = label
+        maxLines = 1
+        textSize = 14f
+        setTextColor(Color.rgb(235, 243, 255))
+        setHintTextColor(Color.rgb(119, 140, 167))
+        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        background = roundedSurface(Color.rgb(10, 21, 36), dp(12), Color.rgb(45, 65, 91))
+        setPadding(dp(12), dp(10), dp(12), dp(10))
     }
 
     private fun renderState() {
