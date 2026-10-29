@@ -28,7 +28,7 @@ RØH VPN is an Android VPN client project focused on a reliable, testable networ
 - JVM unit tests and CI workflow that builds a debug APK and runs tests.
 - Core integration, server-discovery, third-party licensing, engine capability, and Aether security review documents.
 
-**Important:** This is not yet a verified production VPN. The control plane is a deployment scaffold only: no Cloudflare D1 ID, deployed Worker, real VPN node, provisioner, authentication issuer, or enabled server is configured. Xray integration exists on this feature branch but has not passed the required physical-device traffic, DNS, IPv4/IPv6, and leak tests. sing-box and Xray are included in the experimental `multi` flavor but runtime coexistence still requires CI and device verification; Aether is not integrated as an operational backend. PG CORE's Android module is included, but its default packet-forwarding backend deliberately fails closed and is not registered as an operational engine. A successful build, backend registration, or RUNNING status alone is not proof that device traffic traverses the tunnel. The Tools preflight is local-only and does not test network connectivity.
+**Important:** This is not yet a verified production VPN. The control plane is a deployment scaffold only: no Cloudflare D1 ID, deployed Worker, real VPN node, provisioner, authentication issuer, or enabled server is configured. Xray integration exists on this feature branch but has not passed the required physical-device traffic, DNS, IPv4/IPv6, and leak tests. Xray and sing-box are being packaged into one shared gomobile AAR so the app has a single APK and one Go mobile runtime; CI and physical-device coexistence tests must still pass before release. Aether is not integrated as an operational backend. PG CORE's Android module is included, but its default packet-forwarding backend deliberately fails closed and is not registered as an operational engine. A successful build, backend registration, or RUNNING status alone is not proof that device traffic traverses the tunnel. The Tools preflight is local-only and does not test network connectivity.
 
 ## Project documents
 
@@ -46,16 +46,16 @@ RØH VPN is an Android VPN client project focused on a reliable, testable networ
 1. Verify WireGuard and Xray profile import/connect/disconnect on a device or emulator using authorized test servers.
 2. Configure an authorized server API and secure profile provisioning.
 3. Verify TCP, UDP, DNS, IPv4/IPv6, socket protection, lifecycle, network changes, MTU, and leak resistance on real Android devices; record evidence per `docs/DEVICE_VALIDATION.md`.
-4. Prove the experimental combined Xray + sing-box runtime on CI and real devices before advertising it as operational; integrate Aether and PG CORE only after independent review and real data-plane tests.
+4. Prove the unified Xray + sing-box AAR build on CI and verify simultaneous native startup and real traffic on devices before advertising it as operational; integrate Aether and PG CORE only after independent review and real data-plane tests.
 5. Keep release signing keys private and include all required upstream notices.
 
 Proton VPN's free service is not a generic public server pool. RØH VPN will not scrape, hard-code, or redistribute Proton endpoints or credentials; an integration requires an explicitly supported and authorized mechanism.
 
 ## Current status
 
-The RØH fusion role resolver is now implemented as a tested policy boundary. It is not yet a live packet bridge: PG CORE remains unverified as an active helper until its real native TUN-to-engine data path is connected and tested. The combined Xray + sing-box APK remains blocked by duplicate gomobile runtime classes; do not treat the experimental multi flavor as working until this is resolved and verified.
+The RØH fusion role resolver is now implemented as a tested policy boundary. It is not yet a live packet bridge: PG CORE remains unverified as an active helper until its real native TUN-to-engine data path is connected and tested. The build pipeline now attempts to bind Xray and sing-box into one shared AAR (one `go.Seq` runtime) and produce one APK. This packaging change is not considered verified until the combined binding, APK build, and native runtime checks pass.
 
-**Development stage — not a release-ready VPN.** The `multi` flavor is an experimental attempt at one APK containing Xray, sing-box, and WireGuard. Aether and PG CORE are not operational data planes, and no physical-device traffic/leak validation has been recorded. CI verifies compilation, tests, and packaged library presence only—not live tunnel routing or leak resistance. The control plane is not deployed and its server directory is empty by default. Keep the pull request in draft until device-validation gates are completed.
+**Development stage — not a release-ready VPN.** The app is configured as one APK containing Xray, sing-box, and WireGuard. Aether and PG CORE are not operational data planes, and no physical-device traffic/leak validation has been recorded. CI verifies compilation, tests, and packaged library presence only—not live tunnel routing or leak resistance. The control plane is not deployed and its server directory is empty by default. Keep the pull request in draft until device-validation gates are completed.
 
 ### Optional TLS record fragmentation
 
@@ -68,3 +68,8 @@ The profile screen exposes separate SNI, CDN edge IP, and transport Host fields.
 ### PG CORE status
 
 The `:pg-core-android` module is included in the app build, and the app includes the PG CORE flow-selection primitives. However, the PG module's default backend is `UnavailableVpnBackend`; no tested TUN-to-engine packet forwarder or cooperating multi-path server is bundled. The UI therefore reports PG CORE as included but disabled for traffic. It must not be marked operational until a real backend passes the TCP/UDP/DNS, IPv4/IPv6, socket-protection, lifecycle, and device leak-test gates.
+
+
+## One-app packaging requirement
+
+RØH VPN is built as one Android application, not separate Xray and sing-box apps. CI attempts to generate `app/libs/roohvpn-core.aar` from both Go packages in one `gomobile bind` invocation, sharing one Go Java runtime, then builds `app-debug.apk`. The CI ZIP bundle includes the project source tree (including checked-out engine submodules), the unified AAR, the APK, documentation, and SHA-256 metadata. A green build does not replace real-device TCP/UDP/DNS, IPv4/IPv6, socket-protection, or leak testing. PG CORE remains fail-closed for traffic until its real forwarding path is verified; Aether is not yet an operational backend.
