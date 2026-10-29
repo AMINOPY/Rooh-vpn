@@ -51,10 +51,10 @@ class MainActivity : Activity() {
     private var pendingConfiguration: ByteArray? = null
     private var pendingEngineId: EngineId? = null
     private var operationInProgress = false
-    private var lastStatus = if (BuildConfig.FLAVOR == "singbox") {
-        "Import a sing-box JSON or WireGuard profile from a trusted provider."
-    } else {
-        "Import an Xray JSON or WireGuard profile from a trusted provider."
+    private var lastStatus = when (BuildConfig.FLAVOR) {
+        "singbox" -> "Import a sing-box JSON or WireGuard profile from a trusted provider."
+        "multi" -> "Experimental multi-engine build: import Xray, sing-box, or WireGuard profiles."
+        else -> "Import an Xray JSON or WireGuard profile from a trusted provider."
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
