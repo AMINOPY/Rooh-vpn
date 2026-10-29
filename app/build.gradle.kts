@@ -37,6 +37,10 @@ android {
         create("singbox") {
             dimension = "engine"
         }
+        // Experimental combined package: CI must prove both native runtimes coexist.
+        create("multi") {
+            dimension = "engine"
+        }
     }
 
     buildTypes {
@@ -63,6 +67,8 @@ dependencies {
     add("xrayCompileOnly", "com.github.singbox-android:libbox:1.14.0")
     add("singboxImplementation", "com.github.singbox-android:libbox:1.14.0")
     add("singboxCompileOnly", files("libs/xray-core.aar"))
+    add("multiImplementation", files("libs/xray-core.aar"))
+    add("multiImplementation", "com.github.singbox-android:libbox:1.14.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
