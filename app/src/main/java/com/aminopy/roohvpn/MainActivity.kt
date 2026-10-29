@@ -5,10 +5,16 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.view.Gravity
 import android.text.InputType
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.ScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.aminopy.roohvpn.core.EngineFailure
@@ -25,6 +31,10 @@ import java.util.concurrent.Executors
 /** Explicit-consent Xray/WireGuard profile connection screen; no endpoints or credentials are fabricated. */
 class MainActivity : Activity() {
     private lateinit var status: TextView
+    private lateinit var contentHost: FrameLayout
+    private lateinit var homeScroll: ScrollView
+    private lateinit var navButtons: Map<String, Button>
+    private var currentPage: String = "home"
     private lateinit var engineStatus: TextView
     private lateinit var importButton: Button
     private lateinit var saveProfileButton: Button
@@ -145,7 +155,6 @@ class MainActivity : Activity() {
         optionsCard.addView(sniInput, matchWrap())
         optionsCard.addView(cdnIpInput, marginParams(top = 5))
         optionsCard.addView(hostInput, marginParams(top = 5))
-        page.addView(optionsCard, marginParams(bottom = 14))
 
         val engineCard = card()
         engineCard.addView(sectionHeading("ENGINE STATUS"), matchWrap())
@@ -204,7 +213,48 @@ class MainActivity : Activity() {
             setTextColor(Color.rgb(112, 132, 158))
         }
         page.addView(footer, matchWrap())
-        setContentView(scroll)
+        homeScroll = scroll
+        val shell = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.rgb(8, 15, 29))
+        }
+        contentHost = FrameLayout(this)
+        shell.addView(contentHost, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        val nav = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(5), dp(7), dp(5), dp(7))
+            background = roundedSurface(Color.rgb(10, 20, 35), dp(18), Color.rgb(32, 49, 72))
+        }
+        val destinations = listOf(
+            "home" to "⌂\nHome",
+            "profiles" to "▤\nProfiles",
+            "tools" to "⌁\nTools",
+            "engines" to "◈\nEngines",
+            "settings" to "⚙\nSettings"
+        )
+        val buttons = linkedMapOf<String, Button>()
+        destinations.forEach { (key, label) ->
+            val button = Button(this).apply {
+                text = label
+                isAllCaps = false
+                textSize = 10f
+                minHeight = dp(48)
+                minWidth = 0
+                setPadding(dp(2), dp(2), dp(2), dp(2))
+                setTextColor(Color.rgb(157, 174, 197))
+                background = roundedSurface(Color.TRANSPARENT, dp(12), Color.TRANSPARENT)
+                setOnClickListener { navigateTo(key) }
+            }
+            buttons[key] = button
+            nav.addView(button, LinearLayout.LayoutParams(0, dp(52), 1f))
+        }
+        navButtons = buttons
+        shell.addView(nav, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(dp(10), dp(4), dp(10), dp(8)) })
+        setContentView(shell)
+        navigateTo("home")
         renderState()
     }
 
