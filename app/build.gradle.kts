@@ -29,20 +29,6 @@ android {
         buildConfig = true
     }
 
-    flavorDimensions += "engine"
-    productFlavors {
-        create("xray") {
-            dimension = "engine"
-        }
-        create("singbox") {
-            dimension = "engine"
-        }
-        // Experimental combined package: CI must prove both native runtimes coexist.
-        create("multi") {
-            dimension = "engine"
-        }
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -53,22 +39,14 @@ android {
 dependencies {
     implementation("com.wireguard.android:tunnel:1.0.20260102")
 
-    // PG CORE's Android lifecycle/API module is included in the app build.
-    // Its default backend intentionally fails closed until a real packet
-    // forwarding backend is supplied and verified; this dependency alone
-    // must not be treated as a working VPN data plane.
+    // One APK and one shared gomobile runtime for Xray + sing-box.
+    // CI builds this combined AAR from the pinned Go sources.
+    implementation(files("libs/roohvpn-core.aar"))
+
+    // PG CORE's Android lifecycle/API module remains fail-closed until its
+    // actual packet-forwarding backend is connected and verified.
     implementation(project(":pg-core-android"))
 
-    // Xray and sing-box each ship a gomobile runtime with overlapping classes.
-    // Keep runtime selection explicit: the Xray flavor packages Xray, while the
-    // singbox flavor packages libbox. Both APIs remain compile-visible to the
-    // shared source set, but only one Go mobile runtime is shipped per APK.
-    add("xrayImplementation", files("libs/xray-core.aar"))
-    add("xrayCompileOnly", "com.github.singbox-android:libbox:1.14.0")
-    add("singboxImplementation", "com.github.singbox-android:libbox:1.14.0")
-    add("singboxCompileOnly", files("libs/xray-core.aar"))
-    add("multiImplementation", files("libs/xray-core.aar"))
-    add("multiImplementation", "com.github.singbox-android:libbox:1.14.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
