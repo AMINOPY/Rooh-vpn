@@ -17,6 +17,8 @@ import com.aminopy.roohvpn.core.EngineConfigClassifier
 import com.aminopy.roohvpn.core.ImportedProfileFormat
 import com.aminopy.roohvpn.core.EngineId
 import com.aminopy.roohvpn.security.EncryptedProfileStore
+import com.aminopy.roohvpn.profiles.ProfileCatalog
+import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -149,13 +151,54 @@ class MainActivity : Activity() {
     }
 
     private fun saveCurrentProfile() {
+        if (pendingConfiguration == null || operationInProgress) return
+        val nameInput = EditText(this).apply {
+            hint = "Profile name"
+            maxLines = 1
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Save profile securely")
+            .setMessage("The profile will be encrypted using Android Keystore.")
+            .setView(nameInput)
+            .setPositiveButton("Save") { _, _ -> saveProfileNamed(nameInput.text.toString()) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun saveProfileNamed(rawName: String) {
         val current = pendingConfiguration ?: return
         if (operationInProgress) return
-        val id = "profile-${System.currentTimeMillis()}"
+        val name = rawName.trim().take(60)
+        if (name.isBlank()) {
+            lastStatus = "Enter a name before saving the profile."
+            renderState()
+            return
+        }
+        val safeName = name.lowercase(Locale.ROOT)
+            .replace(Regex("[^a-z0-9_-]+"), "-")
+            .trim('-')
+            .take(48)
+            .ifBlank { "saved" }
         val copy = current.copyOf()
         try {
-            profileStore.save(id, copy.toString(Charsets.UTF_8))
-            lastStatus = "Profile saved encrypted with Android Keystore: $id"
+            val fingerprint = ProfileCatalog.fingerprint(copy)
+            val duplicateId = profileStore.listProfileIds().firstNotNullOfOrNull { id ->
+                val stored = profileStore.load(id) ?: return@firstNotNullOfOrNull null
+                val storedBytes = stored.json.toByteArray(Charsets.UTF_8)
+                try {
+                    if (ProfileCatalog.fingerprint(storedBytes) == fingerprint) id else null
+                } finally {
+                    storedBytes.fill(0)
+                }
+            }
+            if (duplicateId != null) {
+                lastStatus = "This exact configuration is already saved as $duplicateId."
+            } else {
+                val id = "profile-$safeName-${System.currentTimeMillis()}"
+                profileStore.save(id, copy.toString(Charsets.UTF_8))
+                lastStatus = "Saved encrypted profile: $name"
+            }
         } catch (_: Exception) {
             lastStatus = "Could not save this profile securely."
         } finally {
