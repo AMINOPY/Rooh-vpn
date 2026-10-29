@@ -51,7 +51,8 @@ jobs:
         run: |
           set -euo pipefail
           git clone --depth 1 --branch v1.14.0 https://github.com/SagerNet/sing-box.git sing-box-source
-          test -f sing-box-source/experimental/libbox/main.go
+          test -d sing-box-source/experimental/libbox
+          find sing-box-source/experimental/libbox -maxdepth 1 -name '*.go' -print -quit | grep -q .
 
       - name: Build a single combined Go mobile AAR
         working-directory: xray-core
