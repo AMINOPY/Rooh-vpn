@@ -52,7 +52,10 @@ fi
   bash scripts/build-natives.sh hev
   bash scripts/build-natives.sh aether
   bash scripts/build-natives.sh pt
-  bash scripts/build-natives.sh psiphon
+  # Psiphon is staged opportunistically; Aether/WARP does not depend on it.
+  if ! bash scripts/build-natives.sh psiphon; then
+    echo "WARNING: optional Psiphon build failed; Aether/WARP remains buildable." >&2
+  fi
 )
 
 for abi in arm64-v8a armeabi-v7a x86_64; do
@@ -64,8 +67,8 @@ for abi in arm64-v8a armeabi-v7a x86_64; do
     libpsiphon.so libpt-lyrebird.so libc++_shared.so; do
     if [ -s "${source_dir}/${library}" ]; then
       install -m 755 "${source_dir}/${library}" "${target_dir}/${library}"
-    elif [ "${library}" = "libpt-lyrebird.so" ]; then
-      echo "WARNING: optional Tor pluggable transport missing for ${abi}" >&2
+    elif [ "${library}" = "libpt-lyrebird.so" ] || [ "${library}" = "libpsiphon.so" ]; then
+      echo "WARNING: optional ${library} missing for ${abi}" >&2
     else
       echo "ERROR: required Aether runtime library missing: ${abi}/${library}" >&2
       exit 1
@@ -77,8 +80,11 @@ for abi in arm64-v8a armeabi-v7a x86_64; do
     exit 1
   }
   [ -x "${target_dir}/libaether.so" ] || { echo "ERROR: ${abi}/libaether.so is not executable" >&2; exit 1; }
-  [ -x "${target_dir}/libpsiphon.so" ] || { echo "ERROR: ${abi}/libpsiphon.so is not executable" >&2; exit 1; }
-  echo "Aether + HEV + Psiphon native runtime staged and JNI-verified for ${abi}"
+  if [ -e "${target_dir}/libpsiphon.so" ] && [ ! -x "${target_dir}/libpsiphon.so" ]; then
+    echo "ERROR: ${abi}/libpsiphon.so exists but is not executable" >&2
+    exit 1
+  fi
+  echo "Aether + HEV native runtime staged and JNI-verified for ${abi} (Psiphon optional)"
 done
 
 echo "Native runtime staged in app/src/main/jniLibs."
