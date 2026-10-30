@@ -2,8 +2,9 @@
 
 ## Runtime layout
 
-RØH builds the Aether Rust engine, Psiphon client, and HEV's in-process
-TUN-to-SOCKS bridge from the pinned upstream build pipeline:
+RØH builds the Aether Rust engine and HEV's in-process TUN-to-SOCKS bridge
+from the pinned upstream build pipeline. Psiphon is an optional native
+artifact and is not required for the built-in WARP mode:
 
 ```text
 Android apps
@@ -26,13 +27,14 @@ the VPN interface is not replaced with a direct route.
   `b3f7a501cb2e2106b5fc43a6ee15310042c520e6`.
 - HEV tunnel source: `heiher/hev-socks5-tunnel`, tag `2.19.3`.
 - Native build script: `scripts/build-aether-runtime.sh`.
-- JNI bridge: built from the pinned Aether bridge source, with exported JNI
-  symbols renamed to the RØH package and an explicit running-state function.
+- JNI bridge: built from the pinned Aether bridge source, with the RØH
+  running-state JNI extension tracked in `native/aether/aethertun-running-jni.c.inc`.
 - ABIs: `arm64-v8a`, `armeabi-v7a`, and `x86_64`.
 
 The CI job uses the upstream Rust/NDK build recipe, packages the engine and
-runtime dependencies, and verifies the executable, HEV shared library, and
-upstream `libaethertun.so` JNI bridge are present in the APK. The upstream Aether application's
+required runtime dependencies, and verifies the executable, HEV shared library,
+and `libaethertun.so` JNI bridge are present in the APK. Psiphon is built and
+staged opportunistically; a missing Psiphon binary does not disable WARP. The upstream Aether application's
 separate UI/service code is not imported; RØH owns its own Android VPN service.
 
 ## Identity handling
@@ -49,8 +51,9 @@ the original Keystore key may require Aether to provision a new identity.
 - A successful native build or open local SOCKS port is not proof of end-to-end
   forwarding. Real-device TCP, UDP, DNS, IPv4/IPv6, socket-leak, network-handoff,
   crash-recovery, and long-duration tests remain release gates.
-- The service is registered only when all required native libraries exist for
-  the installed ABI. A partial APK leaves Aether unavailable.
+- The service is registered only when Aether, the HEV bridge, and the TUN JNI
+  library exist for the installed ABI. Psiphon is optional and is exposed to
+  the process only when its executable is present.
 - Keep the PR in draft until Android CI passes and physical-device evidence is
   attached. Do not merge this branch into main on the basis of compilation alone.
 
