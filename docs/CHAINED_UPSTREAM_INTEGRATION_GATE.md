@@ -16,10 +16,10 @@ These adapters do not start Psiphon or Aether, do not create a SOCKS listener, d
 
 ## Required runtime sequence
 
-1. Start the selected upstream runtime and wait for an explicit ready signal.
+1. Start a proxy-only upstream runtime (no second `VpnService` / TUN) and wait for an explicit ready signal.
 2. Confirm its SOCKS listener binds only to loopback and perform a protocol-level health check.
-3. Start exactly one Android `VpnService` / TUN owner.
-4. Start Xray or sing-box with the corresponding adapter output and ensure every relevant outbound, including DNS, follows the intended chain.
+3. Start exactly one Android `VpnService` / TUN owner for Xray or sing-box.
+4. Start the inner engine with the corresponding adapter output and ensure every relevant outbound, including DNS, follows the intended chain.
 5. If the upstream exits or becomes unhealthy, stop the inner engine and keep traffic fail-closed; never fall back silently to direct.
 6. On disconnect, stop the inner engine first, then the upstream, then release the TUN and socket-protection resources.
 
