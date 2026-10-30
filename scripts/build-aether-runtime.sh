@@ -47,6 +47,11 @@ EOF
   export ANDROID_NDK_HOME ANDROID_API="${API}"
   export HEV_REF AETHER_FEATURES="${AETHER_FEATURES:-tor}"
   bash scripts/fetch-natives.sh
+  actual_hev_ref="$(git -C .native/hev-socks5-tunnel describe --tags --exact-match 2>/dev/null || true)"
+  if [ "${actual_hev_ref}" != "${HEV_REF}" ]; then
+    echo "ERROR: HEV checkout is not the required tag ${HEV_REF} (got ${actual_hev_ref:-untagged})." >&2
+    exit 1
+  fi
   bash scripts/build-natives.sh hev
   bash scripts/build-natives.sh aether
   bash scripts/build-natives.sh pt
