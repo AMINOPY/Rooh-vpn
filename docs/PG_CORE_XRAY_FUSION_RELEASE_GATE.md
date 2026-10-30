@@ -2,13 +2,18 @@
 
 This document records the actual integration boundary for RØH VPN. It is a release gate, not a claim that a production tunnel or multi-engine bonding is already implemented.
 
-## Current verified repository state
+## Current repository state on the hardening branch
 
 - The Android app includes the PG CORE Android module through `:pg-core-android`.
-- The PG CORE Android service owns Android `VpnService` lifecycle and TUN setup, but its default `PgCoreVpnBackend` is deliberately unavailable. A TUN descriptor by itself does not forward traffic.
-- PG CORE contains `FusionFrame`, a bounded 16-byte frame codec with a 64 KiB payload limit. The source explicitly defines it as framing only, not an authenticated tunnel or packet-bonding data plane.
-- Xray source is pinned as a submodule and CI builds a standalone Android AAR. The AAR is not yet part of the app runtime because the current Xray and sing-box Go-mobile bindings have a duplicate `go.Seq` class/runtime collision.
-- The app must not mark Xray, sing-box, PG CORE fusion, or other unverified adapters as available until the real data path is integrated and tested.
+- PG CORE has a concrete integration chain in its library: the Go mobile engine exposes a loopback SOCKS endpoint, and the pinned Hev JNI backend forwards packets from Android TUN to that endpoint. The service owns the TUN descriptor and passes Android's socket-protection callback to the engine.
+- The host app's default PG CORE backend remains deliberately unavailable. The chain is not yet registered as an app `EngineBackend`, and a TUN descriptor or running native process alone is not evidence of traffic forwarding.
+- The hardening branch now builds the PG CORE mobile package into the same gomobile AAR as Xray and sing-box. This is specifically to avoid packaging a second gomobile runtime with duplicate `go.Seq` classes. The PG CORE reflection adapter is aligned with that shared package; the exact CI build must pass before this is treated as verified.
+- CI fetches the pinned Hev 2.19.3 AAR and checks its SHA-256 before packaging it. That upstream AAR declares Android API 29; the app keeps its existing API 26 minimum, while PG CORE's Hev installer explicitly refuses to run below API 29. Do not bypass this runtime guard.
+- PG CORE now exposes explicit service lifecycle states so a future host adapter can distinguish confirmed startup, shutdown, and cleanup failure.
+- No real host-side `VpnTrafficProbe` has yet been implemented. The service must remain fail-closed until a probe independently verifies TCP, UDP and DNS traffic through the TUN.
+- The existing `FusionFrame` codec is bounded framing only; it is not an authenticated tunnel or a packet-bonding data plane.
+- Do not mark PG CORE or multi-engine fusion as available until the host registration, end-to-end probe, and device tests pass.
+
 
 ## Required PG CORE fusion design
 
