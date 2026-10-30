@@ -19,6 +19,7 @@ class TorProxyService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        synchronized(serviceLock) { instance = this }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             getSystemService(NotificationManager::class.java).createNotificationChannel(
                 NotificationChannel(CHANNEL, "RØH Tor", NotificationManager.IMPORTANCE_LOW)
@@ -102,6 +103,7 @@ class TorProxyService : Service() {
         controller?.stop()
         controller = null
         running = false
+        synchronized(serviceLock) { if (instance === this) instance = null }
         super.onDestroy()
     }
 
@@ -123,10 +125,16 @@ class TorProxyService : Service() {
         private const val NOTIFICATION_ID = 7315
         private const val ACTION_START = "com.aminopy.roohvpn.TOR_START"
         private const val ACTION_STOP = "com.aminopy.roohvpn.TOR_STOP"
+        private val serviceLock = Any()
+        @Volatile private var instance: TorProxyService? = null
         @Volatile private var startLatch: CountDownLatch? = null
         @Volatile private var startResult = false
         @Volatile private var stopLatch: CountDownLatch? = null
         @Volatile private var stopResult = false
+
+        fun isActive(): Boolean = synchronized(serviceLock) {
+            instance?.let { it.running || it.starting } == true
+        }
 
         fun start(context: Context, timeoutMs: Long = 20_000): Boolean {
             val latch = CountDownLatch(1)
