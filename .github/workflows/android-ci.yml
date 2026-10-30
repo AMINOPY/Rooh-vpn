@@ -166,9 +166,12 @@ jobs:
           check_entry 'assets/geoip.dat'
           check_entry 'assets/geosite.dat'
           check_entry 'assets/tor/bridges_default.lst'
-          check_entry 'assets/tor/geoip.gz'
-          check_entry 'assets/tor/geoip6.gz'
-          echo "Unified APK contains the Go runtime, Tor client/transports and Tor GeoIP assets."
+          # AAPT strips .gz from pre-compressed asset names; verify the stored payloads remain valid gzip.
+          check_entry 'assets/tor/geoip'
+          check_entry 'assets/tor/geoip6'
+          unzip -p "$apk" assets/tor/geoip | gzip -t
+          unzip -p "$apk" assets/tor/geoip6 | gzip -t
+          echo "Unified APK contains the Go runtime, Tor client/transports and valid Tor GeoIP gzip assets."
           sha256sum "$apk"
 
       - name: Run Android unit tests
