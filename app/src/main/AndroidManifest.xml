@@ -24,6 +24,18 @@
              Xray owns a separate service only when the Xray engine is selected;
              Android still permits only one active VPN per user/profile. -->
         <service
+            android:name=".vpn.AetherVpnService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:foregroundServiceType="specialUse">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Aether Rust engine and in-process TUN packet forwarding" />
+        </service>
+        <service
             android:name=".vpn.XrayVpnService"
             android:exported="true"
             android:permission="android.permission.BIND_VPN_SERVICE"
