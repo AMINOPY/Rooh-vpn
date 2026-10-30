@@ -2,10 +2,13 @@
 
 ## Implemented in this branch
 
-- A profile adapter can attach exactly one Xray proxy outbound to a local SOCKS upstream using Xray `proxySettings.tag`.
-- A profile adapter can attach exactly one sing-box proxy outbound to a local SOCKS upstream using `detour`.
-- Both adapters accept loopback addresses only, validate the port, reject ambiguous proxy outbounds, reject tag collisions, and refuse to overwrite an existing chain.
-- Unit tests cover the transformation and the principal rejection paths.
+- `EngineLaunchOptions.chainedSocksPort` selects an already-running, loopback-only SOCKS5 listener.
+- `ConnectionCoordinator` performs a bounded SOCKS5 no-auth readiness handshake before transforming the profile.
+- Xray profiles are chained with `proxySettings.tag`; sing-box profiles are chained with `detour`.
+- The adapters accept loopback only, validate the port, reject ambiguous proxy outbounds, tag collisions, and existing chains.
+- The transformed profile is passed to the selected backend; original and transformed profile buffers are zeroed after the launch attempt.
+- Coordinator tests verify the SOCKS5 handshake and that the transformed Xray profile reaches backend validation.
+
 
 ## Not implemented / not release-ready
 
