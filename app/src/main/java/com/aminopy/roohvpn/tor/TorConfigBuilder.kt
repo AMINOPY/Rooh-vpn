@@ -33,7 +33,7 @@ object TorConfigBuilder {
             appendLine("DormantClientTimeout 15 minutes")
             appendLine("AutomapHostsOnResolve 1")
             appendLine("VirtualAddrNetworkIPv4 10.192.0.0/10")
-            appendLine("VirtualAddrNetworkIPv6 fc00::/7")
+            appendLine("VirtualAddrNetworkIPv6 [FC00::]/7")
             appendNode("EntryNodes", settings.entryNodes)
             appendNode("ExitNodes", settings.exitNodes)
             appendNode("ExcludeNodes", settings.excludeNodes)
