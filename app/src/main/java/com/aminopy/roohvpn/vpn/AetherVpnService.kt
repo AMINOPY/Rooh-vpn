@@ -213,7 +213,13 @@ class AetherVpnService : VpnService() {
                             .notify(NOTIFICATION_ID, notification("Aether stopped; traffic remains blocked"))
                         return@execute
                     }
-                    runCatching { tun?.close() }
+                    try {
+                        tun?.close()
+                    } catch (_: Exception) {
+                        getSystemService(NotificationManager::class.java)
+                            .notify(NOTIFICATION_ID, notification("Aether TUN close is not confirmed; traffic remains blocked"))
+                        return@execute
+                    }
                     tun = null
                     engine = null
                     AetherIdentityVault.sealPlaintext(File(filesDir, "aether-runtime"))
@@ -231,7 +237,12 @@ class AetherVpnService : VpnService() {
             running = false
             return
         }
-        runCatching { tun?.close() }
+        try {
+            tun?.close()
+        } catch (_: Exception) {
+            running = false
+            return
+        }
         tun = null
         engine?.let { proc ->
             runCatching {
