@@ -68,6 +68,9 @@ for abi in arm64-v8a armeabi-v7a x86_64; do
     if [ -s "${source_dir}/${library}" ]; then
       install -m 755 "${source_dir}/${library}" "${target_dir}/${library}"
     elif [ "${library}" = "libpt-lyrebird.so" ] || [ "${library}" = "libpsiphon.so" ]; then
+      # Remove a stale optional artifact from a previous build rather than
+      # silently shipping it when the current source build did not produce it.
+      rm -f "${target_dir}/${library}"
       echo "WARNING: optional ${library} missing for ${abi}" >&2
     else
       echo "ERROR: required Aether runtime library missing: ${abi}/${library}" >&2
