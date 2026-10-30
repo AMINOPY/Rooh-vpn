@@ -26,7 +26,7 @@ data class TorSettings(
 ) {
     companion object {
         const val DEFAULT_SOCKS_PORT = 9250
-        val TRANSPORTS = setOf("obfs4", "snowflake", "conjure", "webtunnel", "vanilla")
+        val TRANSPORTS = setOf("obfs4", "obfs3", "scramblesuit", "meek_lite", "snowflake", "conjure", "webtunnel", "vanilla")
         val BRIDGE_MODES = setOf("none", "default", "own")
     }
 }
