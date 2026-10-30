@@ -18,7 +18,6 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Single TUN owner for the Aether native engine.
@@ -92,6 +91,7 @@ class AetherVpnService : VpnService() {
                 "--masque",
                 "--balanced",
                 "--dual",
+                "--quick-reconnect",
                 "--bind",
                 "$SOCKS_HOST:$SOCKS_PORT",
                 "--stats"
