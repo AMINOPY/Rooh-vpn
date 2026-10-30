@@ -68,5 +68,6 @@ for database in geoip geoip6; do
     rm -f "$raw"
     exit 1
   }
-  gzip -n -9 -c "$raw" > "$ROOT/app/src/main/assets/tor/$database.gz"
+  # Store verified raw data; Android asset packaging may transparently decompress .gz files.
+  install -m 644 "$raw" "$ROOT/app/src/main/assets/tor/$database"
 done
