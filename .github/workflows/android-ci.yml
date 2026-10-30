@@ -120,6 +120,9 @@ jobs:
           HEV_REF: "2.19.3"
         run: bash scripts/build-aether-runtime.sh
 
+      - name: Fetch checksum-pinned Tor native runtime
+        run: bash scripts/get-tor-runtime.sh
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -142,6 +145,10 @@ jobs:
           grep -Fxq 'lib/arm64-v8a/libaether.so' /tmp/apk-entries.txt
           grep -Fxq 'lib/arm64-v8a/libhev-socks5-tunnel.so' /tmp/apk-entries.txt
           grep -Fxq 'lib/arm64-v8a/libaethertun.so' /tmp/apk-entries.txt
+          grep -Fxq 'lib/arm64-v8a/libtor.so' /tmp/apk-entries.txt
+          grep -Fxq 'lib/arm64-v8a/libobfs4proxy.so' /tmp/apk-entries.txt
+          grep -Fxq 'lib/arm64-v8a/libsnowflake.so' /tmp/apk-entries.txt
+          grep -Fxq 'lib/arm64-v8a/libconjure.so' /tmp/apk-entries.txt
           if grep -Fxq 'lib/arm64-v8a/libpsiphon.so' /tmp/apk-entries.txt; then
             echo "Optional Psiphon native client is packaged."
           else
