@@ -1,39 +1,45 @@
 # Chained upstream integration gate
 
-## Implemented in this branch
+## Implemented
 
-- `EngineLaunchOptions.chainedSocksPort` selects an already-running, loopback-only SOCKS5 listener.
-- `ConnectionCoordinator` performs a bounded SOCKS5 no-auth readiness handshake before transforming the profile.
-- Xray profiles are chained with `proxySettings.tag`; sing-box profiles are chained with `detour`.
-- The adapters accept loopback only, validate the port, reject ambiguous proxy outbounds, tag collisions, and existing chains.
-- The transformed profile is passed to the selected backend; original and transformed profile buffers are zeroed after the launch attempt.
-- Coordinator tests verify the SOCKS5 handshake and that the transformed Xray profile reaches backend validation.
+- `EngineLaunchOptions.chainedSocksPort` selects an already-running loopback-only SOCKS5 listener.
+- `ConnectionCoordinator` performs a bounded SOCKS5 no-auth handshake before applying the profile adapter.
+- Xray profiles are chained with `proxySettings.tag`; sing-box profiles use `detour`.
+- The adapters reject non-loopback hosts, invalid ports, ambiguous proxy outbounds, tag collisions, and pre-existing chains.
+- Existing sing-box outbounds are preserved; temporary source and transformed profile buffers are cleared after launch.
+- JVM tests cover adapter transformation and coordinator handshake behavior.
 
+## Separate Aether mode
 
-## Not implemented / not release-ready
+The Aether backend is a standalone VPN mode. It starts the pinned Aether engine, establishes one Android TUN, and forwards that TUN through the upstream HEV JNI pthread bridge to Aether's local SOCKS5 listener.
 
-These adapters do not start Psiphon or Aether, do not create a SOCKS listener, do not own an Android VPN TUN, and do not establish an end-to-end tunnel. They must not be exposed as a working connection mode until a real upstream runtime is integrated and device-tested.
+It is **not** yet a managed upstream for Xray/sing-box. Starting the current Aether `VpnService` beside an Xray/sing-box `VpnService` would create competing TUN owners and is not an acceptable chaining implementation.
 
-## Required runtime sequence
+## Required managed-upstream architecture
 
-1. Start a proxy-only upstream runtime (no second `VpnService` / TUN) and wait for an explicit ready signal.
-2. Confirm its SOCKS listener binds only to loopback and perform a protocol-level health check.
-3. Start exactly one Android `VpnService` / TUN owner for Xray or sing-box.
-4. Start the inner engine with the corresponding adapter output and ensure every relevant outbound, including DNS, follows the intended chain.
-5. If the upstream exits or becomes unhealthy, stop the inner engine and keep traffic fail-closed; never fall back silently to direct.
-6. On disconnect, stop the inner engine first, then the upstream, then release the TUN and socket-protection resources.
+To use Aether (or Psiphon) as an upstream for Xray/sing-box:
 
-## Aether / Psiphon source and licensing
+1. Start the upstream in proxy-only mode, without establishing a second Android TUN.
+2. Keep its SOCKS listener bound to loopback and verify the SOCKS5 handshake.
+3. Ensure upstream process sockets bypass the inner VPN TUN, without excluding unrelated app traffic or weakening socket protection.
+4. Start exactly one inner `VpnService` / TUN owner for Xray or sing-box.
+5. Apply the Xray `proxySettings.tag` or sing-box `detour` profile transformation.
+6. Monitor upstream and inner-engine health; on either failure, stop the inner engine and keep traffic fail-closed.
+7. On disconnect, stop the inner engine first, then the upstream, then release TUN and socket-protection resources.
 
-Do not copy Aether application code or package its native runtime until the exact upstream revision, native build inputs, third-party notices, and applicable AGPL/GPL obligations have been reviewed for this product's distribution model. Do not bundle Psiphon client configuration identifiers or credentials that are not issued for this app. A dependency declaration alone is not an integration.
+## Psiphon constraints
+
+The pinned Aether engine can spawn its bundled Psiphon client, and CI stages the Psiphon executable. However, Psiphon's SOCKS path is TCP-only. The full-device TUN path needs the DNS/UDP-aware front used by the upstream Aether Android app; simply pointing HEV at Psiphon's raw SOCKS listener is not a valid UDP/DNS integration. The RØH UI therefore does not advertise Aether→Psiphon as a working full-device mode yet.
 
 ## Release gates
 
-- [ ] Confirm and document the AGPL/GPL-compatible distribution and corresponding-source path for Aether/Psiphon components.
-- [x] Add a pinned Aether/HEV native build script and ABI packaging checks to Android CI.
-- [x] Add a standalone Aether service with one TUN owner, app-package loop prevention, startup readiness, and guarded teardown.
-- [ ] Wire Aether as a managed upstream for Xray/sing-box without introducing a second TUN owner.
-- [ ] Add full Psiphon runtime lifecycle and credentials/bootstrap handling.
-- [ ] Confirm DNS/TCP/UDP and IPv4/IPv6 behavior through the full chain.
+- [x] Add pinned Aether/HEV native source build and ABI staging.
+- [x] Add standalone Aether service and HEV in-process TUN bridge.
+- [x] Add Xray/sing-box profile-side SOCKS5 adapters.
+- [ ] Confirm Android CI success for the latest PR head.
+- [ ] Add a proxy-only managed Aether upstream and single-TUN chaining with Xray/sing-box.
+- [ ] Integrate Psiphon bootstrap/trust assets and its UDP/DNS-aware front before exposing that mode.
+- [ ] Confirm DNS, TCP, UDP, IPv4 and IPv6 behavior through each complete chain.
 - [ ] Verify no direct traffic escapes on startup, upstream failure, engine crash, network handoff, or disconnect.
 - [ ] Run physical-device soak tests and attach redacted evidence.
+- [ ] Review AGPL corresponding-source and third-party notice obligations before binary distribution.
