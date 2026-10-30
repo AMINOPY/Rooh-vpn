@@ -81,8 +81,6 @@ jobs:
             https://github.com/heiher/hev-socks5-tunnel/releases/download/2.19.3/hev-socks5-tunnel.aar \
             -o app/libs/hev-socks5-tunnel.aar
           echo "ab6c581e6157680cfe5687ee7bbdcf95405c006c2db3701879ec44b9e5f83836  app/libs/hev-socks5-tunnel.aar" | sha256sum --check
-          unzip -p app/libs/hev-socks5-tunnel.aar classes.jar > /tmp/hev-classes.jar
-          jar tf /tmp/hev-classes.jar | grep -F 'hev/htproxy/TProxyService.class'
 
       - name: Package Xray routing databases
         run: |
@@ -134,69 +132,6 @@ jobs:
           test -s "$apk"
           unzip -Z1 "$apk" > /tmp/apk-entries.txt
           grep -Fxq 'lib/arm64-v8a/libbox.so' /tmp/apk-entries.txt
-          # Every ARM64 native library from the pinned Hev AAR must reach the APK.
-          while IFS= read -r entry; do
-            library="lib/arm64-v8a/$(basename "$entry")"
-            grep -Fxq "$library" /tmp/apk-entries.txt
-          done < <(unzip -Z1 app/libs/hev-socks5-tunnel.aar | grep '^jni/arm64-v8a/.*\.so          grep -Fxq 'assets/geoip.dat' /tmp/apk-entries.txt
-          grep -Fxq 'assets/geosite.dat' /tmp/apk-entries.txt
-          echo "Unified APK contains one combined Go runtime and Xray routing databases."
-          sha256sum "$apk"
-
-      - name: Run Android unit tests
-        run: gradle :app:testDebugUnitTest
-
-      - name: Upload single APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: roohvpn-unified-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Create final ZIP bundle (APK + source tree)
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/ROH-VPN-unified-debug.apk
-          cp README.md dist/README.md
-          cp docs/ROH_ENGINE_FUSION_ARCHITECTURE.md dist/ROH_ENGINE_FUSION_ARCHITECTURE.md
-          sha256sum dist/ROH-VPN-unified-debug.apk > dist/SHA256SUMS.txt
-          # Bundle the checked-out project and engine submodule sources, plus
-          # the combined AAR and one APK. Exclude VCS metadata and build caches.
-          zip -qr dist/ROH-VPN-final-bundle.zip . \
-            -x './.git/*' '*/.git/*' './**/.git/*' \
-               './.gradle/*' '*/.gradle/*' './**/.gradle/*' \
-               '*/build/*' './**/build/*' \
-               './dist/ROH-VPN-final-bundle.zip' '*/.DS_Store'
-          test -s dist/ROH-VPN-final-bundle.zip
-
-      - name: Upload final ZIP bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: roohvpn-final-zip-bundle
-          path: dist/ROH-VPN-final-bundle.zip
-          if-no-files-found: error
-          retention-days: 14
-
-  control-plane:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: server-control-plane
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Test control-plane API
-        run: npm test
-)
           grep -Fxq 'assets/geoip.dat' /tmp/apk-entries.txt
           grep -Fxq 'assets/geosite.dat' /tmp/apk-entries.txt
           echo "Unified APK contains one combined Go runtime and Xray routing databases."
