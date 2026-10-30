@@ -28,18 +28,8 @@ internal object XrayTunProfileAdapter {
             configuration.toString(Charsets.UTF_8)
         } else {
             val adapted = XrayCdnProfileAdapter.apply(configuration, transportOverrides)
-            if (!adapted.isSuccess) {
-                adapted.configuration?.fill(0)
-                return null
-            }
-            val adaptedBytes = adapted.configuration ?: return null
-            try {
-                adaptedBytes.toString(Charsets.UTF_8)
-            } finally {
-                // The adapted byte array contains profile secrets and is only
-                // needed long enough to decode the JSON string.
-                adaptedBytes.fill(0)
-            }
+            if (!adapted.isSuccess) return null
+            adapted.configuration ?: return null
         }
         return try {
             val root = JSONObject(effectiveConfiguration)
