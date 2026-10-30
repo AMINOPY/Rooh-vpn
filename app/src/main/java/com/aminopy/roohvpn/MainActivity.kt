@@ -19,6 +19,11 @@ import android.widget.ScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Switch
+import android.widget.Spinner
+import android.widget.ArrayAdapter
+import com.aminopy.roohvpn.tor.TorSettings
+import com.aminopy.roohvpn.tor.TorSettingsRepository
+import com.aminopy.roohvpn.tor.TorProxyService
 import com.aminopy.roohvpn.core.EngineFailure
 import com.aminopy.roohvpn.core.BoundedProfileReader
 import com.aminopy.roohvpn.core.EngineConfigClassifier
@@ -529,18 +534,162 @@ class MainActivity : Activity() {
     }
 
     private fun buildSettingsPage(): View {
-        val page = pageScaffold("Settings", "Optional transport values should only come from your profile provider.")
+        val page = pageScaffold("Settings", "Configure transport behavior and privacy options.")
         page.addView(infoCard(
             "TRANSPORT OVERRIDES",
             "Keep these blank unless your provider explicitly supplied the values. Incorrect overrides can prevent a connection."
         ), marginParams(bottom = 12))
         page.addView(optionsCardForSettings(), marginParams(bottom = 12))
+        page.addView(buildTorSettingsCard(), marginParams(bottom = 12))
         page.addView(infoCard(
             "PRIVACY & SECURITY",
-            "Saved profiles use Android Keystore encryption. Avoid sharing profile files because they may contain credentials."
+            "Saved profiles use Android Keystore encryption. Tor currently exposes a loopback SOCKS proxy only; it does not silently replace the device VPN or route every app through Tor."
         ), marginParams(bottom = 12))
         page.addView(actionButton("←   Back to Home", false) { navigateTo("home") }, marginParams(top = 4))
         return pageScroll(page)
+    }
+
+    private fun buildTorSettingsCard(): LinearLayout {
+        val card = card()
+        val repository = TorSettingsRepository(applicationContext)
+        var settings = repository.load()
+        card.addView(sectionHeading("TOR CORE"), matchWrap())
+        card.addView(TextView(this).apply {
+            text = "Tor is a separate local SOCKS service. Start it here, then use 127.0.0.1 and the displayed port in a compatible proxy client. Full-device Tor routing is not enabled."
+            textSize = 12f
+            setTextColor(Color.rgb(157, 174, 197))
+            setLineSpacing(dp(3).toFloat(), 1f)
+        }, marginParams(top = 7, bottom = 12))
+
+        fun spinner(values: List<String>, selected: String): Spinner {
+            return Spinner(this).apply {
+                adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_item, values).also {
+                    it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                }
+                setSelection(values.indexOf(selected).coerceAtLeast(0))
+            }
+        }
+        fun field(hintText: String, value: String, multiline: Boolean = false): EditText {
+            return EditText(this).apply {
+                hint = hintText
+                setText(value)
+                textSize = 13f
+                setTextColor(Color.rgb(231, 239, 250))
+                setHintTextColor(Color.rgb(112, 132, 158))
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                inputType = if (multiline) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                    else InputType.TYPE_CLASS_TEXT
+                isSingleLine = !multiline
+                if (multiline) { minLines = 3; maxLines = 6; gravity = Gravity.TOP }
+                background = roundedSurface(Color.rgb(16, 29, 47), dp(10), Color.rgb(48, 67, 91))
+            }
+        }
+        fun toggle(label: String, checked: Boolean): Switch = Switch(this).apply {
+            text = label
+            textSize = 13f
+            setTextColor(Color.rgb(225, 237, 251))
+            isChecked = checked
+        }
+
+        val mode = spinner(listOf("none", "default", "own"), settings.bridgeMode)
+        val transport = spinner(listOf("obfs4", "snowflake", "conjure", "webtunnel", "vanilla"), settings.bridgeTransport)
+        val ownBridges = field("One Tor Bridge line per row", settings.ownBridges, true)
+        val entry = field("Entry node fingerprints / country codes", settings.entryNodes)
+        val exit = field("Exit node fingerprints / country codes", settings.exitNodes)
+        val excluded = field("Excluded countries / fingerprints", settings.excludeNodes)
+        val excludedExit = field("Excluded exit nodes", settings.excludeExitNodes)
+        val ipv4 = toggle("Enable IPv4", settings.ipv4)
+        val ipv6 = toggle("Enable IPv6", settings.ipv6)
+        val padding = toggle("Tor connection padding", settings.connectionPadding)
+        val reducedPadding = toggle("Reduced connection padding", settings.reducedConnectionPadding)
+        val avoidDisk = toggle("Avoid disk writes", settings.avoidDiskWrites)
+        val strict = toggle("Strict node selection", settings.strictNodes)
+        val isolateAddress = toggle("Isolate destination address", settings.isolateDestAddr)
+        val isolatePort = toggle("Isolate destination port", settings.isolateDestPort)
+
+        card.addView(TextView(this).apply { text = "Bridge mode"; setTextColor(Color.rgb(197, 211, 230)); textSize = 12f }, marginParams(top = 4))
+        card.addView(mode, marginParams(top = 4))
+        card.addView(TextView(this).apply { text = "Bridge transport"; setTextColor(Color.rgb(197, 211, 230)); textSize = 12f }, marginParams(top = 10))
+        card.addView(transport, marginParams(top = 4))
+        card.addView(ownBridges, marginParams(top = 8))
+        listOf(entry, exit, excluded, excludedExit).forEach { card.addView(it, marginParams(top = 6)) }
+        listOf(ipv4, ipv6, padding, reducedPadding, avoidDisk, strict, isolateAddress, isolatePort).forEach {
+            card.addView(it, marginParams(top = 3))
+        }
+
+        val save = actionButton("Save Tor settings", true) {
+            try {
+                settings = settings.copy(
+                    bridgeMode = mode.selectedItem.toString(),
+                    bridgeTransport = transport.selectedItem.toString(),
+                    ownBridges = ownBridges.text.toString(),
+                    entryNodes = entry.text.toString(),
+                    exitNodes = exit.text.toString(),
+                    excludeNodes = excluded.text.toString(),
+                    excludeExitNodes = excludedExit.text.toString(),
+                    ipv4 = ipv4.isChecked,
+                    ipv6 = ipv6.isChecked,
+                    connectionPadding = padding.isChecked,
+                    reducedConnectionPadding = reducedPadding.isChecked,
+                    avoidDiskWrites = avoidDisk.isChecked,
+                    strictNodes = strict.isChecked,
+                    isolateDestAddr = isolateAddress.isChecked,
+                    isolateDestPort = isolatePort.isChecked
+                )
+                repository.save(settings)
+                lastStatus = "Tor settings saved. Restart Tor to apply changes."
+                renderState()
+            } catch (e: Exception) {
+                lastStatus = "Tor settings were not saved: ${e.message ?: "invalid value"}"
+                renderState()
+            }
+        }
+        card.addView(save, marginParams(top = 12))
+        card.addView(actionButton("Start Tor SOCKS", false) {
+            try {
+                settings = settings.copy(
+                    bridgeMode = mode.selectedItem.toString(),
+                    bridgeTransport = transport.selectedItem.toString(),
+                    ownBridges = ownBridges.text.toString(),
+                    entryNodes = entry.text.toString(),
+                    exitNodes = exit.text.toString(),
+                    excludeNodes = excluded.text.toString(),
+                    excludeExitNodes = excludedExit.text.toString(),
+                    ipv4 = ipv4.isChecked,
+                    ipv6 = ipv6.isChecked,
+                    connectionPadding = padding.isChecked,
+                    reducedConnectionPadding = reducedPadding.isChecked,
+                    avoidDiskWrites = avoidDisk.isChecked,
+                    strictNodes = strict.isChecked,
+                    isolateDestAddr = isolateAddress.isChecked,
+                    isolateDestPort = isolatePort.isChecked
+                )
+                repository.save(settings)
+                lastStatus = "Starting Tor…"
+                renderState()
+                worker.execute {
+                    val started = TorProxyService.start(applicationContext)
+                    runOnUiThread {
+                        lastStatus = if (started) "Tor SOCKS is ready at 127.0.0.1:${settings.socksPort}. Bootstrap may still be in progress."
+                            else "Tor did not open its local SOCKS listener. Check native runtime and bridge settings."
+                        renderState()
+                    }
+                }
+            } catch (e: Exception) {
+                lastStatus = "Tor could not start: ${e.message ?: "invalid settings"}"
+                renderState()
+            }
+        }, marginParams(top = 8))
+        card.addView(actionButton("Stop Tor", false) {
+            worker.execute {
+                val stopped = TorProxyService.stop(applicationContext)
+                runOnUiThread {
+                    lastStatus = if (stopped) "Tor stopped." else "Tor shutdown could not be confirmed."
+                    renderState()
+                }
+            }
+        }, marginParams(top = 8))
+        return card
     }
 
     private fun optionsCardForSettings(): LinearLayout {
