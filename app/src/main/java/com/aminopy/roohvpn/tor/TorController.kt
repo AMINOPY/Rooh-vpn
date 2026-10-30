@@ -40,7 +40,8 @@ class TorController(
             listOf("geoip", "geoip6").forEach { name ->
                 val database = File(torDir, name)
                 if (!database.isFile || database.length() == 0L) {
-                    app.assets.open("tor/$name.gz").use { compressed ->
+                    // AAPT strips the .gz suffix from pre-compressed assets in the APK.
+                    app.assets.open("tor/$name").use { compressed ->
                         GZIPInputStream(compressed).use { input ->
                             database.outputStream().use { output -> input.copyTo(output) }
                         }
