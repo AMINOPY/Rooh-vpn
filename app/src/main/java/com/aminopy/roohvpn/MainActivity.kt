@@ -593,7 +593,8 @@ class MainActivity : Activity() {
 
         val mode = spinner(listOf("none", "default", "own"), settings.bridgeMode)
         val transport = spinner(listOf("obfs4", "obfs3", "scramblesuit", "meek_lite", "snowflake", "conjure", "webtunnel", "vanilla"), settings.bridgeTransport)
-        val ownBridges = field("One Tor Bridge line per row", settings.ownBridges, true)
+        val ownBridges = field("Custom Tor Bridge lines (one per row)", settings.ownBridges, true)
+        val enabledBridges = field("Selected default bridge lines (optional; one per row)", settings.enabledBridges, true)
         val newCircuit = field("New circuit period (seconds)", settings.newCircuitPeriodSeconds.toString())
         val maxDirty = field("Maximum circuit dirtiness (seconds)", settings.maxCircuitDirtinessSeconds.toString())
         val socksPort = field("Local SOCKS port (1024–65535)", settings.socksPort.toString())
@@ -615,6 +616,7 @@ class MainActivity : Activity() {
         card.addView(TextView(this).apply { text = "Bridge transport"; setTextColor(Color.rgb(197, 211, 230)); textSize = 12f }, marginParams(top = 10))
         card.addView(transport, marginParams(top = 4))
         card.addView(ownBridges, marginParams(top = 8))
+        card.addView(enabledBridges, marginParams(top = 6))
         listOf(newCircuit, maxDirty, socksPort, entry, exit, excluded, excludedExit).forEach { card.addView(it, marginParams(top = 6)) }
         listOf(ipv4, ipv6, padding, reducedPadding, avoidDisk, strict, isolateAddress, isolatePort).forEach {
             card.addView(it, marginParams(top = 3))
@@ -626,6 +628,7 @@ class MainActivity : Activity() {
                     bridgeMode = mode.selectedItem.toString(),
                     bridgeTransport = transport.selectedItem.toString(),
                     ownBridges = ownBridges.text.toString(),
+                    enabledBridges = enabledBridges.text.toString(),
                     newCircuitPeriodSeconds = newCircuit.text.toString().toIntOrNull() ?: settings.newCircuitPeriodSeconds,
                     maxCircuitDirtinessSeconds = maxDirty.text.toString().toIntOrNull() ?: settings.maxCircuitDirtinessSeconds,
                     socksPort = socksPort.text.toString().toIntOrNull() ?: settings.socksPort,
@@ -661,6 +664,7 @@ class MainActivity : Activity() {
                     bridgeMode = mode.selectedItem.toString(),
                     bridgeTransport = transport.selectedItem.toString(),
                     ownBridges = ownBridges.text.toString(),
+                    enabledBridges = enabledBridges.text.toString(),
                     newCircuitPeriodSeconds = newCircuit.text.toString().toIntOrNull() ?: settings.newCircuitPeriodSeconds,
                     maxCircuitDirtinessSeconds = maxDirty.text.toString().toIntOrNull() ?: settings.maxCircuitDirtinessSeconds,
                     socksPort = socksPort.text.toString().toIntOrNull() ?: settings.socksPort,
