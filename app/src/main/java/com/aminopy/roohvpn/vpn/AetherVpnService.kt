@@ -31,6 +31,8 @@ class AetherVpnService : VpnService() {
     @Volatile private var engine: Process? = null
     @Volatile private var running = false
     @Volatile private var stopping = false
+    @Volatile private var bridgeStarted = false
+    @Volatile private var startupFailureHold = false
     private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
 
     override fun onCreate() {
@@ -59,8 +61,15 @@ class AetherVpnService : VpnService() {
                 val result = startTunnel()
                 completeStart(result)
                 if (result != null) {
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf(startId)
+                    if (tun != null) {
+                        // A TUN established for this attempt is retained as a
+                        // blackhole until the user explicitly disconnects.
+                        getSystemService(NotificationManager::class.java)
+                            .notify(NOTIFICATION_ID, notification("Aether failed; kill switch active. Disconnect to restore network."))
+                    } else {
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        stopSelf(startId)
+                    }
                 } else {
                     watchEngineExit()
                 }
@@ -86,6 +95,20 @@ class AetherVpnService : VpnService() {
             AetherIdentityVault.sealPlaintext(workDir)
             AetherIdentityVault.unseal(workDir)
 
+            val descriptor = Builder()
+                .setSession("RØH VPN — Aether")
+                .setMtu(TUN_MTU)
+                .addAddress(TUN_IPV4, 30)
+                .addAddress(TUN_IPV6, 126)
+                .addRoute("0.0.0.0", 0)
+                .addRoute("::", 0)
+                .addDnsServer("1.1.1.1")
+                .addDnsServer("8.8.8.8")
+                .addDisallowedApplication(packageName)
+                .setBlocking(true)
+                .establish() ?: error("Android did not establish the Aether TUN")
+            tun = descriptor
+
             val process = ProcessBuilder(
                 binary.absolutePath,
                 "--masque",
@@ -109,24 +132,11 @@ class AetherVpnService : VpnService() {
                 "Aether did not open its local SOCKS5 listener"
             }
 
-            val descriptor = Builder()
-                .setSession("RØH VPN — Aether")
-                .setMtu(TUN_MTU)
-                .addAddress(TUN_IPV4, 30)
-                .addAddress(TUN_IPV6, 126)
-                .addRoute("0.0.0.0", 0)
-                .addRoute("::", 0)
-                .addDnsServer("1.1.1.1")
-                .addDnsServer("8.8.8.8")
-                .addDisallowedApplication(packageName)
-                .setBlocking(true)
-                .establish() ?: error("Android did not establish the Aether TUN")
-            tun = descriptor
-
             val config = writeHevConfig(workDir)
             check(AetherHevBridge.start(config.absolutePath, descriptor.fd)) {
                 "The native TUN-to-SOCKS bridge refused to start"
             }
+            bridgeStarted = true
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
             while (!AetherHevBridge.isRunning() && System.nanoTime() < deadline) {
                 Thread.sleep(40)
@@ -204,7 +214,7 @@ class AetherVpnService : VpnService() {
                 // The TUN remains blocking until the forwarding bridge is stopped;
                 // there is no fallback to the device's physical network.
                 worker.execute {
-                    runCatching { AetherHevBridge.stop() }
+                    if (bridgeStarted) runCatching { AetherHevBridge.stop() }
                     running = false
                     if (!waitForBridgeStop()) {
                         // Keep the TUN descriptor and foreground service alive:
@@ -213,18 +223,13 @@ class AetherVpnService : VpnService() {
                             .notify(NOTIFICATION_ID, notification("Aether stopped; traffic remains blocked"))
                         return@execute
                     }
-                    try {
-                        tun?.close()
-                    } catch (_: Exception) {
-                        getSystemService(NotificationManager::class.java)
-                            .notify(NOTIFICATION_ID, notification("Aether TUN close is not confirmed; traffic remains blocked"))
-                        return@execute
-                    }
-                    tun = null
+                    bridgeStarted = false
+                    // Keep the TUN up as a blackhole after an unexpected engine
+                    // exit. Releasing it here would silently send apps direct.
                     engine = null
                     AetherIdentityVault.sealPlaintext(File(filesDir, "aether-runtime"))
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf()
+                    getSystemService(NotificationManager::class.java)
+                        .notify(NOTIFICATION_ID, notification("Aether stopped; kill switch active. Disconnect to restore network."))
                 }
             }
         }, "roohvpn-aether-watch").apply { isDaemon = true; start() }
@@ -232,18 +237,13 @@ class AetherVpnService : VpnService() {
 
     @Synchronized
     private fun cleanupAfterStartFailure() {
-        runCatching { AetherHevBridge.stop() }
+        if (bridgeStarted) runCatching { AetherHevBridge.stop() }
         if (!waitForBridgeStop()) {
             running = false
+            startupFailureHold = tun != null
             return
         }
-        try {
-            tun?.close()
-        } catch (_: Exception) {
-            running = false
-            return
-        }
-        tun = null
+        bridgeStarted = false
         engine?.let { proc ->
             runCatching {
                 proc.destroy()
@@ -256,21 +256,27 @@ class AetherVpnService : VpnService() {
         if (engine?.isAlive == true) return
         engine = null
         running = false
+        startupFailureHold = tun != null
         AetherIdentityVault.sealPlaintext(File(filesDir, "aether-runtime"))
     }
 
     @Synchronized
     private fun stopTunnel(): EngineFailure? {
+        if (startupFailureHold) {
+            startupFailureHold = false
+            return failure("AETHER_START_FAILED_KILL_SWITCH_ACTIVE", "Aether startup failed; the blocking VPN interface is retained. Disconnect again to restore network access.", true)
+        }
         if (!running && tun == null && engine == null) {
             stopForeground(STOP_FOREGROUND_REMOVE)
             return null
         }
         stopping = true
         try {
-            AetherHevBridge.stop()
+            if (bridgeStarted) AetherHevBridge.stop()
             if (!waitForBridgeStop()) {
                 return failure("AETHER_TUN_STOP_UNCONFIRMED", true)
             }
+            bridgeStarted = false
             try {
                 tun?.close()
             } catch (_: Exception) {
