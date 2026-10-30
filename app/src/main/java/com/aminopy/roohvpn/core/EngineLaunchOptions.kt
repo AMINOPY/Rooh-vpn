@@ -1,8 +1,9 @@
 package com.aminopy.roohvpn.core
 
 /**
- * Optional launch-time transport and upstream settings. Values are applied only
- * by engines that explicitly support them.
+ * Optional launch-time transport overrides. They are applied only by engines
+ * that explicitly support them. SNI is a hostname, CDN edge is an IP literal,
+ * and Host/authority is a separate transport-layer hostname.
  */
 data class EngineLaunchOptions(
     val xraySni: String? = null,
@@ -10,8 +11,7 @@ data class EngineLaunchOptions(
     val xrayHostHeader: String? = null,
     val singBoxSni: String? = null,
     val singBoxCdnEdgeIp: String? = null,
-    val singBoxHostHeader: String? = null,
-    val psiphonProfile: PsiphonProfile? = null
+    val singBoxHostHeader: String? = null
 ) {
     fun hasXrayTransportOverrides(): Boolean =
         xraySni != null || xrayCdnEdgeIp != null || xrayHostHeader != null
@@ -19,8 +19,6 @@ data class EngineLaunchOptions(
     fun hasSingBoxTransportOverrides(): Boolean =
         singBoxSni != null || singBoxCdnEdgeIp != null || singBoxHostHeader != null
 
-    fun hasPsiphonUpstream(): Boolean = psiphonProfile != null
-
     fun hasAnyTransportOverrides(): Boolean =
-        hasXrayTransportOverrides() || hasSingBoxTransportOverrides() || hasPsiphonUpstream()
+        hasXrayTransportOverrides() || hasSingBoxTransportOverrides()
 }
