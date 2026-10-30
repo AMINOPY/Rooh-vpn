@@ -14,6 +14,11 @@ by that release before extracting native executables.
 - `libconjure.so`: Conjure transport helper.
 - Supported Android ABIs: arm64-v8a, armeabi-v7a and x86_64.
 
+The build also fetches the GeoIP and GeoIPv6 databases from the immutable
+ZX-VPN source commit `41796b68fc171a351fa668d7991499cca395c0d0`, verifies
+their Git blob IDs, and stores gzip-compressed assets. The Tor controller
+expands them into its private data directory before launch.
+
 The Tor controller writes a private torrc and data directory under the app's
 internal files directory. Its SOCKS listener is bound only to
 `127.0.0.1` (default port 9250). It reports bootstrap progress from Tor's
