@@ -113,7 +113,7 @@ data class PsiphonProfile(
         private const val SERVER_LIST_URL =
             "https://s3.amazonaws.com//psiphon/web/mjr4-p23r-puwl/server_list_compressed"
         private const val SERVER_LIST_SIGNATURE_KEY =
-            "MIICIDANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAt7Ls+/39r+T6zNW7GiVpJfzq/xvL9SBH" +
+            "MIICIDANBgkqhkiG9w0BAQEFAAOCAg8AMIICCAKCAgEAt7Ls+/39r+T6zNW7GiVpJfzq/xvL9SBH" +
             "5rIFnk0RXYEYavax3WS6HOD35eTAqn8AniOwiH+DOkvgSKF2caqk/y1dfq47Pdymtwzp9ikpB1C5" +
             "OfAysXzBiwVJlCdajBKvBZDerV1cMvRzCKvKwRmvDmHgphQQ7WfXIGbRbmmk6opMBh3roE42Kcot" +
             "LFtqp0RRwLtcBRNtCdsrVsjiI1Lqz/lH+T61sGjSjQ3CHMuZYSQJZo/KrvzgQXpkaCTdbObxHqb6" +
