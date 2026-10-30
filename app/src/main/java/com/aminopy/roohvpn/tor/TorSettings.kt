@@ -7,6 +7,7 @@ data class TorSettings(
     val bridgeMode: String = "none",
     val bridgeTransport: String = "obfs4",
     val ownBridges: String = "",
+    val enabledBridges: String = "",
     val entryNodes: String = "",
     val exitNodes: String = "",
     val excludeNodes: String = "",
@@ -39,6 +40,7 @@ class TorSettingsRepository(context: Context) {
         bridgeMode = prefs.getString("bridge_mode", "none") ?: "none",
         bridgeTransport = prefs.getString("bridge_transport", "obfs4") ?: "obfs4",
         ownBridges = prefs.getString("own_bridges", "") ?: "",
+        enabledBridges = prefs.getString("enabled_bridges", "") ?: "",
         entryNodes = prefs.getString("entry_nodes", "") ?: "",
         exitNodes = prefs.getString("exit_nodes", "") ?: "",
         excludeNodes = prefs.getString("exclude_nodes", "") ?: "",
@@ -65,6 +67,7 @@ class TorSettingsRepository(context: Context) {
             .putString("bridge_mode", s.bridgeMode)
             .putString("bridge_transport", s.bridgeTransport)
             .putString("own_bridges", s.ownBridges)
+            .putString("enabled_bridges", s.enabledBridges)
             .putString("entry_nodes", s.entryNodes)
             .putString("exit_nodes", s.exitNodes)
             .putString("exclude_nodes", s.excludeNodes)
