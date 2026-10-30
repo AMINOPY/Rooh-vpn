@@ -31,6 +31,12 @@ android {
         buildConfig = true
     }
 
+    // Keep gzip Tor databases byte-for-byte and retain their .gz asset names.
+    // AAPT otherwise strips the .gz suffix from already-compressed assets.
+    androidResources {
+        noCompress += "gz"
+    }
+
     // Tor and Aether are executable native payloads launched from nativeLibraryDir.
     // Legacy packaging guarantees the .so files are extracted to that directory.
     packaging {
