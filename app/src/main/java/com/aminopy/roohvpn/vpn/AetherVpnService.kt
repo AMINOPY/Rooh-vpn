@@ -122,6 +122,8 @@ class AetherVpnService : VpnService() {
                 environment()["HOME"] = workDir.absolutePath
                 environment()["TMPDIR"] = workDir.absolutePath
                 environment()["LD_LIBRARY_PATH"] = nativeDir.absolutePath
+                environment()["AETHER_PSIPHON_BIN"] = File(nativeDir, "libpsiphon.so").absolutePath
+                environment()["AETHER_PSIPHON_DIR"] = File(filesDir, "psiphon").apply { mkdirs() }.absolutePath
             }.start()
             engine = process
             Thread({
@@ -361,7 +363,7 @@ class AetherVpnService : VpnService() {
         private const val CHANNEL_ID = "roohvpn-aether"
         private const val NOTIFICATION_ID = 7314
         private const val ENGINE_BINARY = "libaether.so"
-        private const val BRIDGE_LIBRARY = "libroohvpnhev.so"
+        private const val BRIDGE_LIBRARY = "libaethertun.so"
         private const val HEV_LIBRARY = "libhev-socks5-tunnel.so"
         private const val SOCKS_HOST = "127.0.0.1"
         private const val SOCKS_PORT = 1819
@@ -378,9 +380,10 @@ class AetherVpnService : VpnService() {
 
         fun isNativeRuntimePackaged(context: Context): Boolean {
             val dir = File(context.applicationInfo.nativeLibraryDir)
-            return File(dir, ENGINE_BINARY).isFile &&
+            return File(dir, ENGINE_BINARY).canExecute() &&
                 File(dir, BRIDGE_LIBRARY).isFile &&
-                File(dir, HEV_LIBRARY).isFile
+                File(dir, HEV_LIBRARY).isFile &&
+                File(dir, "libpsiphon.so").canExecute()
         }
 
         fun isRunning(): Boolean = instance?.running == true
