@@ -125,8 +125,13 @@ class AetherVpnService : VpnService() {
                 environment()["HOME"] = workDir.absolutePath
                 environment()["TMPDIR"] = workDir.absolutePath
                 environment()["LD_LIBRARY_PATH"] = nativeDir.absolutePath
-                environment()["AETHER_PSIPHON_BIN"] = File(nativeDir, "libpsiphon.so").absolutePath
-                environment()["AETHER_PSIPHON_DIR"] = File(filesDir, "psiphon").apply { mkdirs() }.absolutePath
+                // Psiphon is an optional, separately gated transport. The
+                // built-in Aether/WARP engine must start without its binary.
+                AetherNativeRuntime.psiphonExecutable(this@AetherVpnService)?.let { psiphon ->
+                    environment()["AETHER_PSIPHON_BIN"] = psiphon
+                    environment()["AETHER_PSIPHON_DIR"] =
+                        File(filesDir, "psiphon").apply { mkdirs() }.absolutePath
+                }
             }.start()
             engine = process
             Thread({
@@ -382,11 +387,7 @@ class AetherVpnService : VpnService() {
         @Volatile private var stopFailure: EngineFailure? = null
 
         fun isNativeRuntimePackaged(context: Context): Boolean {
-            val dir = File(context.applicationInfo.nativeLibraryDir)
-            return File(dir, ENGINE_BINARY).canExecute() &&
-                File(dir, BRIDGE_LIBRARY).isFile &&
-                File(dir, HEV_LIBRARY).isFile &&
-                File(dir, "libpsiphon.so").canExecute()
+            return AetherNativeRuntime.isAetherAvailable(context)
         }
 
         fun isRunning(): Boolean = instance?.running == true
