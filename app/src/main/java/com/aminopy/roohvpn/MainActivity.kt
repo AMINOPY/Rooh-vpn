@@ -607,6 +607,7 @@ class MainActivity : Activity() {
         val padding = toggle("Tor connection padding", settings.connectionPadding)
         val reducedPadding = toggle("Reduced connection padding", settings.reducedConnectionPadding)
         val avoidDisk = toggle("Avoid disk writes", settings.avoidDiskWrites)
+        val distinct = toggle("Enforce distinct relay subnets", settings.enforceDistinctSubnets)
         val strict = toggle("Strict node selection", settings.strictNodes)
         val isolateAddress = toggle("Isolate destination address", settings.isolateDestAddr)
         val isolatePort = toggle("Isolate destination port", settings.isolateDestPort)
@@ -618,7 +619,7 @@ class MainActivity : Activity() {
         card.addView(ownBridges, marginParams(top = 8))
         card.addView(enabledBridges, marginParams(top = 6))
         listOf(newCircuit, maxDirty, socksPort, entry, exit, excluded, excludedExit).forEach { card.addView(it, marginParams(top = 6)) }
-        listOf(ipv4, ipv6, padding, reducedPadding, avoidDisk, strict, isolateAddress, isolatePort).forEach {
+        listOf(ipv4, ipv6, padding, reducedPadding, avoidDisk, distinct, strict, isolateAddress, isolatePort).forEach {
             card.addView(it, marginParams(top = 3))
         }
 
@@ -641,6 +642,7 @@ class MainActivity : Activity() {
                     connectionPadding = padding.isChecked,
                     reducedConnectionPadding = reducedPadding.isChecked,
                     avoidDiskWrites = avoidDisk.isChecked,
+                    enforceDistinctSubnets = distinct.isChecked,
                     strictNodes = strict.isChecked,
                     isolateDestAddr = isolateAddress.isChecked,
                     isolateDestPort = isolatePort.isChecked
@@ -677,6 +679,7 @@ class MainActivity : Activity() {
                     connectionPadding = padding.isChecked,
                     reducedConnectionPadding = reducedPadding.isChecked,
                     avoidDiskWrites = avoidDisk.isChecked,
+                    enforceDistinctSubnets = distinct.isChecked,
                     strictNodes = strict.isChecked,
                     isolateDestAddr = isolateAddress.isChecked,
                     isolateDestPort = isolatePort.isChecked
