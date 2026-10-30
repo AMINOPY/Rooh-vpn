@@ -27,6 +27,7 @@ class TorProxyService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            startForeground(NOTIFICATION_ID, notification("Stopping Tor…"))
             Thread({
                 val stopped = controller?.stop() ?: true
                 running = false
