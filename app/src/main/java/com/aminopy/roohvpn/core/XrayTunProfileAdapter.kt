@@ -27,7 +27,9 @@ internal object XrayTunProfileAdapter {
         val effectiveConfiguration = if (transportOverrides == null) {
             configuration.toString(Charsets.UTF_8)
         } else {
-            XrayCdnProfileAdapter.apply(configuration, transportOverrides).configuration ?: return null
+            val adapted = XrayCdnProfileAdapter.apply(configuration, transportOverrides)
+            if (!adapted.isSuccess) return null
+            adapted.configuration ?: return null
         }
         return try {
             val root = JSONObject(effectiveConfiguration)

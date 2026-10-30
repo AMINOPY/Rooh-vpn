@@ -61,17 +61,26 @@ jobs:
           go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.8
           export PATH="$PATH:$(go env GOPATH)/bin"
           gomobile init
-          go work init . ../sing-box-source
+          go work init . ../sing-box-source ../pg-core
           mkdir -p ../app/libs
-          # Bind both public APIs into one AAR. This creates one gomobile
+          # Bind all three public APIs into one AAR. This creates one gomobile
           # Java runtime and one native library instead of colliding go.Seq
           # classes from two independently-built AARs.
           gomobile bind -v -target=android -androidapi 26 \
             -javapkg=io.nekohasekai -libname=box \
             -trimpath -ldflags="-s -w -buildid= -checklinkname=0" \
             -o ../app/libs/roohvpn-core.aar \
-            ./ github.com/sagernet/sing-box/experimental/libbox
+            ./ github.com/sagernet/sing-box/experimental/libbox github.com/AMINOPY/pg-core/mobile
           test -s ../app/libs/roohvpn-core.aar
+
+      - name: Fetch and verify pinned Hev Android TUN backend
+        run: |
+          set -euo pipefail
+          mkdir -p app/libs
+          curl --fail --location --silent --show-error \
+            https://github.com/heiher/hev-socks5-tunnel/releases/download/2.19.3/hev-socks5-tunnel.aar \
+            -o app/libs/hev-socks5-tunnel.aar
+          echo "ab6c581e6157680cfe5687ee7bbdcf95405c006c2db3701879ec44b9e5f83836  app/libs/hev-socks5-tunnel.aar" | sha256sum --check
 
       - name: Package Xray routing databases
         run: |

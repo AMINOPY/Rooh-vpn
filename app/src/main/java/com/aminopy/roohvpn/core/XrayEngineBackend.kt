@@ -18,9 +18,7 @@ class XrayEngineBackend(context: Context) : EngineBackend {
     )
 
     override fun validate(configuration: ByteArray): EngineFailure? {
-        if (XrayProfilePreflight.validate(configuration) != null) {
-            return invalidConfiguration()
-        }
+        if (XrayProfilePreflight.validate(configuration) != null) return invalidConfiguration()
         if (XrayTunProfileAdapter.prepare(configuration) == null) {
             return EngineFailure(
                 code = "XRAY_TUN_ADAPTATION_FAILED",
@@ -44,7 +42,11 @@ class XrayEngineBackend(context: Context) : EngineBackend {
         options: EngineLaunchOptions
     ): EngineFailure? {
         if (options.hasSingBoxTransportOverrides()) {
-            return EngineFailure("ENGINE_OPTION_UNSUPPORTED", "sing-box transport overrides cannot be applied to an Xray profile.", false)
+            return EngineFailure(
+                "ENGINE_OPTION_UNSUPPORTED",
+                "sing-box transport overrides cannot be applied to an Xray profile.",
+                false
+            )
         }
         if (!options.hasXrayTransportOverrides()) return validate(configuration)
         if (XrayProfilePreflight.validate(configuration) != null) return invalidConfiguration()
@@ -54,8 +56,9 @@ class XrayEngineBackend(context: Context) : EngineBackend {
             cdnEdgeIp = options.xrayCdnEdgeIp,
             hostHeader = options.xrayHostHeader
         )
-        val transformed = XrayCdnProfileAdapter.apply(configuration, overrides)
-        if (!transformed.isSuccess) {
+        // The adapter returns an immutable String. Check its result without
+        // pretending that String contents can be zeroed like a ByteArray.
+        if (!XrayCdnProfileAdapter.apply(configuration, overrides).isSuccess) {
             return EngineFailure(
                 code = "XRAY_TRANSPORT_OVERRIDE_REJECTED",
                 safeMessage = "The SNI/CDN options are invalid or incompatible with this Xray profile.",
@@ -78,7 +81,11 @@ class XrayEngineBackend(context: Context) : EngineBackend {
     ): EngineFailure? {
         if (options.hasSingBoxTransportOverrides()) {
             configuration.fill(0)
-            return EngineFailure("ENGINE_OPTION_UNSUPPORTED", "sing-box transport overrides cannot be applied to an Xray profile.", false)
+            return EngineFailure(
+                "ENGINE_OPTION_UNSUPPORTED",
+                "sing-box transport overrides cannot be applied to an Xray profile.",
+                false
+            )
         }
         if (!options.hasXrayTransportOverrides()) return start(configuration)
         validate(configuration, options)?.let {
