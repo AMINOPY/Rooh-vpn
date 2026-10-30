@@ -89,7 +89,9 @@ object TorConfigBuilder {
                         address.contains(':') && !address.any { it.isLetter() }
                     }
                 } else all.filter { it.startsWith("${settings.bridgeTransport} ") }
-                defaults.take(8)
+                val enabled = settings.enabledBridges.lineSequence().map { it.trim() }
+                    .filter { it.isNotEmpty() }.toSet()
+                if (enabled.isEmpty()) defaults.take(8) else defaults.filter { it in enabled }
             }
         }
         require(lines.isNotEmpty()) { "No bridge lines are available for the selected transport" }
