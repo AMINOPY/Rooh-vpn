@@ -11,6 +11,13 @@ HEV_REF="${HEV_REF:-2.19.3}"
 
 : "${ANDROID_NDK_HOME:?ANDROID_NDK_HOME must point to the installed Android NDK}"
 
+NDK_TOOLCHAIN=""
+for host in linux-x86_64 darwin-x86_64 windows-x86_64; do
+  candidate="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/${host}/bin"
+  if [ -d "${candidate}" ]; then NDK_TOOLCHAIN="${candidate}"; break; fi
+done
+[ -n "${NDK_TOOLCHAIN}" ] || { echo "ERROR: NDK LLVM toolchain not found" >&2; exit 1; }
+
 if [ ! -d "${UPSTREAM_DIR}/.git" ]; then
   mkdir -p "$(dirname "${UPSTREAM_DIR}")"
   git clone --filter=blob:none --no-checkout "${UPSTREAM_REPO}" "${UPSTREAM_DIR}"
@@ -74,7 +81,14 @@ for abi in arm64-v8a armeabi-v7a x86_64; do
       exit 1
     fi
   done
-  echo "Aether + HEV + Psiphon native runtime staged for ${abi}"
+  symbols="$("${NDK_TOOLCHAIN}/llvm-nm" --dynamic --defined-only "${target_dir}/libaethertun.so")"
+  echo "${symbols}" | grep -qw 'Java_studio_cluvex_aether_core_TProxyService_isRunning' || {
+    echo "ERROR: ${abi}/libaethertun.so lacks the RØH running-state JNI symbol." >&2
+    exit 1
+  }
+  [ -x "${target_dir}/libaether.so" ] || { echo "ERROR: ${abi}/libaether.so is not executable" >&2; exit 1; }
+  [ -x "${target_dir}/libpsiphon.so" ] || { echo "ERROR: ${abi}/libpsiphon.so is not executable" >&2; exit 1; }
+  echo "Aether + HEV + Psiphon native runtime staged and JNI-verified for ${abi}"
 done
 
 echo "Native runtime staged in app/src/main/jniLibs."
