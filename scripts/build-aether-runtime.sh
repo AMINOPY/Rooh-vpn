@@ -44,6 +44,22 @@ fi
   export ANDROID_NDK_HOME ANDROID_API="${API}"
   export HEV_REF AETHER_FEATURES="${AETHER_FEATURES:-tor}"
   bash scripts/fetch-natives.sh
+
+  # Lyrebird's Android transport depends on github.com/wlynxg/anet, which
+  # intentionally uses //go:linkname net.zoneCache. Go 1.23+ rejects that
+  # reference unless the linker check is explicitly disabled. Keep this
+  # narrowly scoped to the pinned Lyrebird PIE build; do not weaken checks
+  # for PG CORE, Xray, or the combined gomobile AAR.
+  pt_build_script="scripts/build-natives.sh"
+  if ! grep -Fq -- '-ldflags "-s -w"' "${pt_build_script}"; then
+    echo "ERROR: expected pinned Lyrebird linker invocation was not found." >&2
+    exit 1
+  fi
+  sed -i 's/-ldflags "-s -w"/-ldflags "-s -w -checklinkname=0"/' "${pt_build_script}"
+  grep -Fq -- '-ldflags "-s -w -checklinkname=0"' "${pt_build_script}" || {
+    echo "ERROR: failed to apply Go linkname compatibility flag to Lyrebird." >&2
+    exit 1
+  }
   actual_hev_ref="$(git -C .native/hev-socks5-tunnel describe --tags --exact-match 2>/dev/null || true)"
   if [ "${actual_hev_ref}" != "${HEV_REF}" ]; then
     echo "ERROR: HEV checkout is not the required tag ${HEV_REF} (got ${actual_hev_ref:-untagged})." >&2
