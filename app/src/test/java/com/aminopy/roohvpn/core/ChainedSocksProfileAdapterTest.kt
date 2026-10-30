@@ -24,8 +24,11 @@ class ChainedSocksProfileAdapterTest {
         assertTrue(result.errorCode ?: "expected success", result.isSuccess)
         val outbounds = JSONObject(result.configuration!!.toString(Charsets.UTF_8)).getJSONArray("outbounds")
         assertEquals("roohvpn-chained-upstream", outbounds.getJSONObject(1).getString("detour"))
+        assertEquals(3, outbounds.length())
         assertEquals("socks", outbounds.getJSONObject(0).getString("type"))
         assertEquals(19081, outbounds.getJSONObject(0).getInt("server_port"))
+        assertEquals("proxy", outbounds.getJSONObject(1).getString("tag"))
+        assertEquals("direct", outbounds.getJSONObject(2).getString("tag"))
     }
 
     @Test fun rejectsNonLoopbackSocksHost() {
