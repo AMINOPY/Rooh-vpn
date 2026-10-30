@@ -652,7 +652,11 @@ class MainActivity : Activity() {
         }
         card.addView(save, marginParams(top = 12))
         card.addView(actionButton("Start Tor SOCKS", false) {
-            try {
+            val coordinator = (application as RoohVpnApplication).connectionCoordinator
+            if (coordinator.activeEngine() != null || coordinator.isOperationInProgress()) {
+                lastStatus = "Disconnect the active VPN engine before starting Tor. Tor's native sockets are not protected from that VPN TUN yet."
+                renderState()
+            } else try {
                 settings = settings.copy(
                     bridgeMode = mode.selectedItem.toString(),
                     bridgeTransport = transport.selectedItem.toString(),
@@ -1103,6 +1107,12 @@ class MainActivity : Activity() {
         }
         val engine = pendingEngineId ?: run {
             source.fill(0)
+            renderState()
+            return
+        }
+        if (TorProxyService.isActive()) {
+            source.fill(0)
+            lastStatus = "Stop the Tor local proxy before starting a VPN engine. Tor sockets are not yet protected from the VPN TUN."
             renderState()
             return
         }
