@@ -95,7 +95,7 @@ class AetherVpnService : VpnService() {
             AetherIdentityVault.sealPlaintext(workDir)
             AetherIdentityVault.unseal(workDir)
 
-            val descriptor = Builder()
+            val builder = Builder()
                 .setSession("RØH VPN — Aether")
                 .setMtu(TUN_MTU)
                 .addAddress(TUN_IPV4, 30)
@@ -105,8 +105,11 @@ class AetherVpnService : VpnService() {
                 .addDnsServer("1.1.1.1")
                 .addDnsServer("8.8.8.8")
                 .addDisallowedApplication(packageName)
-                .setBlocking(true)
-                .establish() ?: error("Android did not establish the Aether TUN")
+            // Builder.setBlocking was added in API 29; keep the app's API-26
+            // minimum compatible instead of calling a missing method on Android 8/9.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) builder.setBlocking(true)
+            val descriptor = builder.establish()
+                ?: error("Android did not establish the Aether TUN")
             tun = descriptor
 
             val process = ProcessBuilder(
