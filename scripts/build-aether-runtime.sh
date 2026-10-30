@@ -3,78 +3,30 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UPSTREAM_DIR="${ROOT}/.native/aether-mobile"
-JNI_DIR="${ROOT}/app/src/main/jniLibs"
-AETHER_REPO="https://github.com/QW-AI-Code/Aether.git"
-AETHER_COMMIT="b3f7a501cb2e2106b5fc43a6ee15310042c520e6"
-HEV_REF="${HEV_REF:-2.19.3}"
+UPSTREAM_REPO="https://github.com/QW-AI-Code/Aether.git"
+UPSTREAM_COMMIT="b3f7a501cb2e2106b5fc43a6ee15310042c520e6"
+OUTPUT_DIR="${ROOT}/app/src/main/jniLibs"
 API="${ANDROID_API:-26}"
+HEV_REF="${HEV_REF:-2.19.3}"
 
 : "${ANDROID_NDK_HOME:?ANDROID_NDK_HOME must point to the installed Android NDK}"
 
 if [ ! -d "${UPSTREAM_DIR}/.git" ]; then
   mkdir -p "$(dirname "${UPSTREAM_DIR}")"
-  git clone --filter=blob:none --recurse-submodules "${AETHER_REPO}" "${UPSTREAM_DIR}"
+  git clone --filter=blob:none --no-checkout "${UPSTREAM_REPO}" "${UPSTREAM_DIR}"
 fi
 
-# Reuse the upstream's maintained native build scripts rather than reimplement
-# its HEV/JNI ABI. fetch-natives creates .native/hev-socks5-tunnel and
-# .native/aether; force the latter to the exact commit used for this release.
-(
-  cd "${UPSTREAM_DIR}"
-  HEV_REF="${HEV_REF}" AETHER_REPO="QW-AI-Code/Aether" bash scripts/fetch-natives.sh
-  git -C .native/aether fetch --depth 1 origin "${AETHER_COMMIT}"
-  git -C .native/aether checkout --detach "${AETHER_COMMIT}"
-  git -C .native/aether submodule update --init --recursive
-  ANDROID_API="${API}" AETHER_FEATURES="${AETHER_FEATURES:-tor}" bash scripts/build-natives.sh all
-)
+git -C "${UPSTREAM_DIR}" fetch --depth 1 origin "${UPSTREAM_COMMIT}"
+git -C "${UPSTREAM_DIR}" checkout --detach "${UPSTREAM_COMMIT}"
+git -C "${UPSTREAM_DIR}" submodule update --init --recursive
 
-NDK_TOOLCHAIN=""
-for host in linux-x86_64 darwin-x86_64 windows-x86_64; do
-  candidate="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/${host}/bin"
-  if [ -d "${candidate}" ]; then NDK_TOOLCHAIN="${candidate}"; break; fi
-done
-[ -n "${NDK_TOOLCHAIN}" ] || { echo "NDK LLVM toolchain not found" >&2; exit 1; }
-
-clang_for_abi() {
-  case "$1" in
-    arm64-v8a) echo "${NDK_TOOLCHAIN}/aarch64-linux-android${API}-clang" ;;
-    armeabi-v7a) echo "${NDK_TOOLCHAIN}/armv7a-linux-androideabi${API}-clang" ;;
-    x86_64) echo "${NDK_TOOLCHAIN}/x86_64-linux-android${API}-clang" ;;
-    *) return 1 ;;
-  esac
-}
-
-SOURCE="${UPSTREAM_DIR}/scripts/aethertun-jni.c"
-[ -s "${SOURCE}" ] || { echo "Upstream JNI bridge source is missing" >&2; exit 1; }
-
-for abi in arm64-v8a armeabi-v7a x86_64; do
-  upstream_libs="${UPSTREAM_DIR}/app/src/main/jniLibs/${abi}"
-  out="${JNI_DIR}/${abi}"
-  [ -d "${upstream_libs}" ] || { echo "Native outputs missing for ${abi}" >&2; exit 1; }
-  mkdir -p "${out}"
-
-  # Keep only the Aether executable and its runtime dependencies plus HEV.
-  # The original upstream JNI bridge is replaced with a bridge whose JNI ABI
-  # belongs to RØH; optional Tor/Psiphon/Xray executables are not bundled here.
-  find "${upstream_libs}" -maxdepth 1 -type f -name '*.so' \
-    ! -name 'libaethertun.so' \
-    ! -name 'libpsiphon.so' \
-    ! -name 'libpt-lyrebird.so' \
-    ! -name 'libxray.so' \
-    -exec cp -f {} "${out}/" \;
-
-  clang="$(clang_for_abi "${abi}")"
-  [ -x "${clang}" ] || { echo "NDK clang missing for ${abi}" >&2; exit 1; }
-  bridge_source="$(mktemp)"
-  sed \
-    -e 's/Java_studio_cluvex_aether_core_TProxyService_TProxyStartService/Java_com_aminopy_roohvpn_core_AetherHevBridge_start/g' \
-    -e 's/Java_studio_cluvex_aether_core_TProxyService_TProxyStopService/Java_com_aminopy_roohvpn_core_AetherHevBridge_stop/g' \
-    -e 's/Java_studio_cluvex_aether_core_TProxyService_TProxyGetStats/Java_com_aminopy_roohvpn_core_AetherHevBridge_getStats/g' \
-    "${SOURCE}" > "${bridge_source}"
-  cat >> "${bridge_source}" <<'EOF'
+# Patch only the upstream bridge source to expose a synchronized running-state
+# query. Keep its proven native-pthread implementation and JNI_OnLoad intact.
+BRIDGE_SRC="${UPSTREAM_DIR}/scripts/aethertun-jni.c"
+grep -q 'Java_studio_cluvex_aether_core_TProxyService_isRunning' "${BRIDGE_SRC}" || cat >> "${BRIDGE_SRC}" <<'EOF'
 
 JNIEXPORT jboolean JNICALL
-Java_com_aminopy_roohvpn_core_AetherHevBridge_isRunning(JNIEnv *env, jclass clazz)
+Java_studio_cluvex_aether_core_TProxyService_isRunning(JNIEnv *env, jclass clazz)
 {
     bool value;
     (void)env;
@@ -86,30 +38,38 @@ Java_com_aminopy_roohvpn_core_AetherHevBridge_isRunning(JNIEnv *env, jclass claz
 }
 EOF
 
-  "${clang}" -O2 -fPIC -shared -Wall -Werror \
-    -Wl,-soname,libroohvpnhev.so -Wl,--no-undefined \
-    -o "${out}/libroohvpnhev.so" "${bridge_source}" \
-    -L"${out}" -lhev-socks5-tunnel -llog
-  rm -f "${bridge_source}"
+# The pinned upstream owns the complete, maintained Android native build:
+# hev TUN bridge, Aether executable, Tor pluggable transports, and Psiphon.
+# Build only components used by this app; avoid bundling upstream Xray as RØH
+# already builds its own Xray/sing-box runtime.
+(
+  cd "${UPSTREAM_DIR}"
+  export ANDROID_NDK_HOME ANDROID_API="${API}"
+  export HEV_REF AETHER_FEATURES="${AETHER_FEATURES:-tor}"
+  bash scripts/fetch-natives.sh
+  bash scripts/build-natives.sh hev
+  bash scripts/build-natives.sh aether
+  bash scripts/build-natives.sh pt
+  bash scripts/build-natives.sh psiphon
+)
 
-  symbols="$("${NDK_TOOLCHAIN}/llvm-nm" --dynamic --defined-only "${out}/libroohvpnhev.so")"
-  for symbol in JNI_OnLoad \
-    Java_com_aminopy_roohvpn_core_AetherHevBridge_start \
-    Java_com_aminopy_roohvpn_core_AetherHevBridge_stop \
-    Java_com_aminopy_roohvpn_core_AetherHevBridge_isRunning; do
-    echo "${symbols}" | grep -qw "${symbol}" || {
-      echo "${abi}: JNI bridge is missing ${symbol}" >&2
+for abi in arm64-v8a armeabi-v7a x86_64; do
+  source_dir="${UPSTREAM_DIR}/app/src/main/jniLibs/${abi}"
+  target_dir="${OUTPUT_DIR}/${abi}"
+  mkdir -p "${target_dir}"
+  for library in \
+    libaether.so libaethertun.so libhev-socks5-tunnel.so \
+    libpsiphon.so libpt-lyrebird.so libc++_shared.so; do
+    if [ -s "${source_dir}/${library}" ]; then
+      install -m 755 "${source_dir}/${library}" "${target_dir}/${library}"
+    elif [ "${library}" = "libpt-lyrebird.so" ]; then
+      echo "WARNING: optional Tor pluggable transport missing for ${abi}" >&2
+    else
+      echo "ERROR: required Aether runtime library missing: ${abi}/${library}" >&2
       exit 1
-    }
+    fi
   done
-
-  for library in libaether.so libhev-socks5-tunnel.so libroohvpnhev.so; do
-    [ -s "${out}/${library}" ] || {
-      echo "${abi}: required Aether runtime library missing: ${library}" >&2
-      exit 1
-    }
-  done
-  echo "Aether runtime verified for ${abi}"
+  echo "Aether + HEV + Psiphon native runtime staged for ${abi}"
 done
 
-echo "Aether native runtime installed in app/src/main/jniLibs."
+echo "Native runtime staged in app/src/main/jniLibs."
