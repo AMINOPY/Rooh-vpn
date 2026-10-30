@@ -72,8 +72,13 @@ internal object ChainedSocksProfileAdapter {
                 .put("server", host)
                 .put("server_port", port)
             proxy.put("detour", TAG)
-            // Place the upstream before the outbound that references it.
-            outbounds.put(0, socks)
+            // JSONArray.put(index, value) replaces rather than inserts. Build a
+            // new array so the original proxy outbound is preserved at index 1.
+            val chainedOutbounds = JSONArray().put(socks)
+            for (index in 0 until outbounds.length()) {
+                chainedOutbounds.put(outbounds.get(index))
+            }
+            root.put("outbounds", chainedOutbounds)
             Result(root.toString().toByteArray(Charsets.UTF_8))
         } catch (_: Exception) {
             Result(null, "INVALID_SING_BOX_PROFILE")
