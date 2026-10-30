@@ -9,7 +9,6 @@ import android.content.Intent
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
-import androidx.core.content.ContextCompat
 import com.aminopy.roohvpn.MainActivity
 import com.aminopy.roohvpn.core.EngineFailure
 import com.aminopy.roohvpn.core.AetherHevBridge
@@ -150,8 +149,16 @@ class AetherVpnService : VpnService() {
         while (System.nanoTime() < deadline) {
             if (!process.isAlive) return false
             try {
-                Socket().use { it.connect(InetSocketAddress(SOCKS_HOST, SOCKS_PORT), 400) }
-                return true
+                Socket().use { socket ->
+                    socket.connect(InetSocketAddress(SOCKS_HOST, SOCKS_PORT), 400)
+                    socket.soTimeout = 400
+                    socket.getOutputStream().apply {
+                        write(byteArrayOf(0x05, 0x01, 0x00))
+                        flush()
+                    }
+                    val input = socket.getInputStream()
+                    if (input.read() == 0x05 && input.read() == 0x00) return true
+                }
             } catch (_: Exception) {
                 Thread.sleep(350)
             }
@@ -355,8 +362,7 @@ class AetherVpnService : VpnService() {
                 startLatch = latch
             }
             return try {
-                ContextCompat.startForegroundService(
-                    context,
+                context.startForegroundService(
                     Intent(context, AetherVpnService::class.java).setAction(ACTION_START)
                 )
                 if (!latch.await(ENGINE_READY_TIMEOUT_MS + 20_000L, TimeUnit.MILLISECONDS)) {
@@ -377,8 +383,7 @@ class AetherVpnService : VpnService() {
                 stopLatch = latch
             }
             return try {
-                ContextCompat.startForegroundService(
-                    context,
+                context.startForegroundService(
                     Intent(context, AetherVpnService::class.java).setAction(ACTION_STOP)
                 )
                 if (!latch.await(12, TimeUnit.SECONDS)) {
