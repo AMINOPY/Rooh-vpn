@@ -15,17 +15,17 @@ if [ ! -d "${UPSTREAM_DIR}/.git" ]; then
   mkdir -p "$(dirname "${UPSTREAM_DIR}")"
   git clone --filter=blob:none --recurse-submodules "${AETHER_REPO}" "${UPSTREAM_DIR}"
 fi
-git -C "${UPSTREAM_DIR}" fetch --depth 1 origin "${AETHER_COMMIT}"
-git -C "${UPSTREAM_DIR}" checkout --detach "${AETHER_COMMIT}"
-git -C "${UPSTREAM_DIR}" submodule update --init --recursive
 
-# Use the upstream's own source-fetch and native-build recipes. The Aether
-# source is pinned by commit; HEV is pinned to its release tag.
+# Reuse the upstream's maintained native build scripts rather than reimplement
+# its HEV/JNI ABI. fetch-natives creates .native/hev-socks5-tunnel and
+# .native/aether; force the latter to the exact commit used for this release.
 (
   cd "${UPSTREAM_DIR}"
-  HEV_REF="${HEV_REF}" bash scripts/fetch-natives.sh
-  ANDROID_API="${API}" bash scripts/build-natives.sh aether
-  ANDROID_API="${API}" bash scripts/build-natives.sh hev
+  HEV_REF="${HEV_REF}" AETHER_REPO="QW-AI-Code/Aether" bash scripts/fetch-natives.sh
+  git -C .native/aether fetch --depth 1 origin "${AETHER_COMMIT}"
+  git -C .native/aether checkout --detach "${AETHER_COMMIT}"
+  git -C .native/aether submodule update --init --recursive
+  ANDROID_API="${API}" AETHER_FEATURES="${AETHER_FEATURES:-tor}" bash scripts/build-natives.sh all
 )
 
 NDK_TOOLCHAIN=""
