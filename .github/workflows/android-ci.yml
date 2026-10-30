@@ -2,17 +2,17 @@ name: Android and Control Plane CI
 
 on:
   push:
-    branches: [main, "feat/**"]
-  pull_request:
     branches: [main]
+  pull_request:
+    branches: [main, "feat/**"]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: roohvpn-ci-${{ github.ref }}-${{ github.sha }}
-  cancel-in-progress: false
+  group: roohvpn-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   android:
