@@ -31,6 +31,14 @@ android {
         buildConfig = true
     }
 
+    // Tor and Aether are executable native payloads launched from nativeLibraryDir.
+    // Legacy packaging guarantees the .so files are extracted to that directory.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
