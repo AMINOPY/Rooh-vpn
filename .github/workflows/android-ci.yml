@@ -2,17 +2,17 @@ name: Android and Control Plane CI
 
 on:
   push:
-    branches: [main, "feat/**"]
-  pull_request:
     branches: [main]
+  pull_request:
+    branches: [main, "feat/**"]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: roohvpn-ci-${{ github.ref }}-${{ github.sha }}
-  cancel-in-progress: false
+  group: roohvpn-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   android:
@@ -73,15 +73,6 @@ jobs:
             ./ github.com/sagernet/sing-box/experimental/libbox github.com/AMINOPY/pg-core/mobile
           test -s ../app/libs/roohvpn-core.aar
 
-      - name: Fetch and verify pinned Hev Android TUN backend
-        run: |
-          set -euo pipefail
-          mkdir -p app/libs
-          curl --fail --location --silent --show-error \
-            https://github.com/heiher/hev-socks5-tunnel/releases/download/2.19.3/hev-socks5-tunnel.aar \
-            -o app/libs/hev-socks5-tunnel.aar
-          echo "ab6c581e6157680cfe5687ee7bbdcf95405c006c2db3701879ec44b9e5f83836  app/libs/hev-socks5-tunnel.aar" | sha256sum --check
-
       - name: Package Xray routing databases
         run: |
           set -euo pipefail
@@ -113,6 +104,25 @@ jobs:
         with:
           packages: 'platforms;android-36 build-tools;36.0.0 ndk;29.0.14206865'
 
+      - name: Set up Rust for the pinned Aether core
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.98.0 --profile minimal
+          rustup default 1.98.0
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+          cargo install cargo-ndk --locked
+
+      - name: Build and package Aether + HEV native runtime
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/29.0.14206865
+          ANDROID_API: "26"
+          AETHER_FEATURES: "tor"
+          HEV_REF: "2.19.3"
+        run: bash scripts/build-aether-runtime.sh
+
+      - name: Fetch checksum-pinned Tor native runtime
+        run: bash scripts/get-tor-runtime.sh
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -131,10 +141,37 @@ jobs:
           apk=app/build/outputs/apk/debug/app-debug.apk
           test -s "$apk"
           unzip -Z1 "$apk" > /tmp/apk-entries.txt
-          grep -Fxq 'lib/arm64-v8a/libbox.so' /tmp/apk-entries.txt
-          grep -Fxq 'assets/geoip.dat' /tmp/apk-entries.txt
-          grep -Fxq 'assets/geosite.dat' /tmp/apk-entries.txt
-          echo "Unified APK contains one combined Go runtime and Xray routing databases."
+          check_entry() {
+            local entry="$1"
+            if ! grep -Fxq "$entry" /tmp/apk-entries.txt; then
+              echo "ERROR: expected APK entry is missing: $entry" >&2
+              echo "Relevant packaged entries:" >&2
+              grep -E '(^assets/|^lib/arm64-v8a/)' /tmp/apk-entries.txt | sort >&2 || true
+              exit 1
+            fi
+          }
+          check_entry 'lib/arm64-v8a/libbox.so'
+          check_entry 'lib/arm64-v8a/libaether.so'
+          check_entry 'lib/arm64-v8a/libhev-socks5-tunnel.so'
+          check_entry 'lib/arm64-v8a/libaethertun.so'
+          check_entry 'lib/arm64-v8a/libtor.so'
+          check_entry 'lib/arm64-v8a/libobfs4proxy.so'
+          check_entry 'lib/arm64-v8a/libsnowflake.so'
+          check_entry 'lib/arm64-v8a/libconjure.so'
+          if grep -Fxq 'lib/arm64-v8a/libpsiphon.so' /tmp/apk-entries.txt; then
+            echo "Optional Psiphon native client is packaged."
+          else
+            echo "Psiphon is absent; standalone Aether/WARP remains supported."
+          fi
+          check_entry 'assets/geoip.dat'
+          check_entry 'assets/geosite.dat'
+          check_entry 'assets/tor/bridges_default.lst'
+          # GeoIP databases are shipped raw to avoid AAPT gzip asset transformations.
+          check_entry 'assets/tor/geoip'
+          check_entry 'assets/tor/geoip6'
+          test "$(unzip -p "$apk" assets/tor/geoip | wc -c)" -gt 0
+          test "$(unzip -p "$apk" assets/tor/geoip6 | wc -c)" -gt 0
+          echo "Unified APK contains the Go runtime, Tor client/transports and non-empty Tor GeoIP databases."
           sha256sum "$apk"
 
       - name: Run Android unit tests

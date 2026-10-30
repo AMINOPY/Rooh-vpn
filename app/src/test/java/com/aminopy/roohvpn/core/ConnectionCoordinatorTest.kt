@@ -281,6 +281,72 @@ class ConnectionCoordinatorTest {
         assertEquals(EngineId.XRAY, coordinator.activeEngine())
     }
 
+    @Test
+    fun chainedSocksOptionTransformsXrayProfileOnlyAfterLocalSocksHandshake() {
+        val server = java.net.ServerSocket(
+            0, 1, java.net.InetAddress.getByName("127.0.0.1")
+        )
+        server.soTimeout = 2_000
+        val listener = Thread {
+            server.accept().use { socket ->
+                socket.soTimeout = 2_000
+                val request = ByteArray(3)
+                var offset = 0
+                while (offset < request.size) {
+                    val count = socket.getInputStream().read(request, offset, request.size - offset)
+                    if (count < 0) break
+                    offset += count
+                }
+                if (offset == 3 && request.contentEquals(byteArrayOf(0x05, 0x01, 0x00))) {
+                    socket.getOutputStream().write(byteArrayOf(0x05, 0x00))
+                    socket.getOutputStream().flush()
+                }
+            }
+        }
+        listener.start()
+
+        var validatedProfile = ""
+        val backend = object : EngineBackend {
+            override val id = EngineId.XRAY
+            override val capabilities = EngineCapabilities(
+                tunnelMode = TunnelMode.NATIVE_TUN,
+                supportsIpv4 = true,
+                supportsIpv6 = true,
+                supportsDnsRouting = true,
+                supportsPerAppRouting = false,
+                supportedConfigFormats = setOf("json")
+            )
+            override fun validate(configuration: ByteArray): EngineFailure? {
+                validatedProfile = configuration.toString(Charsets.UTF_8)
+                return null
+            }
+            override fun start(configuration: ByteArray): EngineFailure? = null
+            override fun status() = EngineStatus(id, EngineState.RUNNING)
+            override fun stop(): EngineFailure? = null
+        }
+        val original = """{"outbounds":[{"protocol":"vless","tag":"proxy","settings":{}},{"protocol":"freedom","tag":"direct"}]}"""
+            .toByteArray(Charsets.UTF_8)
+
+        val failure = try {
+            ConnectionCoordinator(EngineRegistry(listOf(backend))).connect(
+                EngineId.XRAY,
+                original,
+                EngineLaunchOptions(chainedSocksPort = server.localPort)
+            )
+        } finally {
+            listener.join(2_000)
+            server.close()
+        }
+
+        assertNull(failure)
+        val outbounds = org.json.JSONObject(validatedProfile).getJSONArray("outbounds")
+        assertEquals(
+            "roohvpn-chained-upstream",
+            outbounds.getJSONObject(0).getJSONObject("proxySettings").getString("tag")
+        )
+        assertFalse(original.any { it.toInt() != 0 })
+    }
+
     private class FakeBackend(
         private val stateAfterStart: EngineState = EngineState.RUNNING,
         private val statusEngineId: EngineId = EngineId.XRAY,

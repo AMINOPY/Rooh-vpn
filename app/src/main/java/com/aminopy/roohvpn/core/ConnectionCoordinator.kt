@@ -47,10 +47,48 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
             selected
         }
 
+        var runtimeConfiguration = configuration
         try {
-            backend.validate(configuration, options)?.let { return it }
+            val backendOptions = if (options.hasChainedSocksUpstream()) {
+                val port = options.chainedSocksPort
+                    ?: return EngineFailure(
+                        code = "INVALID_LOCAL_SOCKS",
+                        safeMessage = "The local SOCKS port is invalid.",
+                        retryable = false
+                    )
+                if (engineId != EngineId.XRAY && engineId != EngineId.SING_BOX) {
+                    return EngineFailure(
+                        code = "CHAINED_SOCKS_ENGINE_UNSUPPORTED",
+                        safeMessage = "Chained SOCKS upstream is supported only by Xray and sing-box.",
+                        retryable = false
+                    )
+                }
+                if (port !in 1..65535 || !LoopbackSocksProbe.isReady(port)) {
+                    return EngineFailure(
+                        code = "SOCKS_UPSTREAM_NOT_READY",
+                        safeMessage = "The local SOCKS5 upstream is not ready on loopback.",
+                        retryable = true
+                    )
+                }
+                val adapted = when (engineId) {
+                    EngineId.XRAY -> ChainedSocksProfileAdapter.applyXray(configuration, port = port)
+                    EngineId.SING_BOX -> ChainedSocksProfileAdapter.applySingBox(configuration, port = port)
+                    else -> error("Engine was validated above")
+                }
+                if (!adapted.isSuccess) {
+                    return EngineFailure(
+                        code = adapted.errorCode ?: "CHAINED_SOCKS_PROFILE_REJECTED",
+                        safeMessage = "The profile cannot be safely chained through the local SOCKS5 upstream.",
+                        retryable = false
+                    )
+                }
+                runtimeConfiguration = adapted.configuration!!
+                options.copy(chainedSocksPort = null)
+            } else options
 
-            backend.start(configuration, options)?.let { failure ->
+            backend.validate(runtimeConfiguration, backendOptions)?.let { return it }
+
+            backend.start(runtimeConfiguration, backendOptions)?.let { failure ->
                 cleanupAfterFailedStart(backend)
                 return failure
             }
@@ -91,6 +129,7 @@ class ConnectionCoordinator(private val registry: EngineRegistry) {
             )
         } finally {
             configuration.fill(0)
+            if (runtimeConfiguration !== configuration) runtimeConfiguration.fill(0)
             synchronized(lock) {
                 if (reservedBackend === backend) reservedBackend = null
                 operationInProgress = false

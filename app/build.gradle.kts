@@ -31,6 +31,14 @@ android {
         buildConfig = true
     }
 
+    // Tor and Aether are executable native payloads launched from nativeLibraryDir.
+    // Legacy packaging guarantees the .so files are extracted to that directory.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -44,8 +52,6 @@ dependencies {
     // One APK and one shared gomobile runtime for Xray, sing-box, and PG CORE.
     // Keeping them in one AAR avoids duplicate gomobile runtime classes.
     implementation(files("libs/roohvpn-core.aar"))
-    // Pinned Hev JNI runtime supplies PG CORE TUN-to-SOCKS packet forwarding.
-    implementation(files("libs/hev-socks5-tunnel.aar"))
 
     // PG CORE's Android lifecycle/API module remains fail-closed until its
     // actual packet-forwarding backend is connected and verified.
