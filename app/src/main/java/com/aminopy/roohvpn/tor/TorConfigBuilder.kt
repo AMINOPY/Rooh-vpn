@@ -91,7 +91,7 @@ object TorConfigBuilder {
         require(lines.isNotEmpty()) { "No bridge lines are available for the selected transport" }
         lines.forEach { line ->
             require(line.length <= 2048 && !line.contains('\r') && !line.contains('\n')) { "Invalid bridge line" }
-            require(line.substringBefore(' ') in TorSettings.TRANSPORTS) { "Bridge transport mismatch" }
+            require(line.substringBefore(' ') == settings.bridgeTransport) { "Bridge transport mismatch" }
             appendLine("Bridge $line")
         }
     }
