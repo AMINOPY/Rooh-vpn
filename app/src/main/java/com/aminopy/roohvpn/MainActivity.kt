@@ -506,13 +506,23 @@ class MainActivity : Activity() {
                     "PG CORE Android module and flow-selection primitives are included. " +
                     "A real TUN-to-engine packet-forwarding backend and cooperating path endpoints are not installed, " +
                     "so PG CORE remains disabled for traffic."
-                EngineId.AETHER ->
-                    "A real forwarding backend is not integrated. Do not rely on this engine for traffic."
+                EngineId.AETHER -> if (registered) {
+                    "Pinned Aether Rust engine + local SOCKS5 listener + in-process HEV TUN bridge are packaged. " +
+                    "Real-device traffic, DNS, IPv6, reconnect and leak verification are still required."
+                } else {
+                    "Aether native runtime is not packaged for this APK ABI; it is kept unavailable rather than shown as a working engine."
+                }
                 else ->
                     (if (registered) "Backend registered." else "Backend not integrated in this build.") +
                     "\nReal-device TCP/UDP/DNS forwarding and leak tests still need verification."
             }
             page.addView(infoCard(label, details), marginParams(bottom = 10))
+        }
+        if (coordinator.isEngineAvailable(EngineId.AETHER)) {
+            page.addView(
+                actionButton("Connect with Aether", true) { prepareAetherConnection() },
+                marginParams(top = 4, bottom = 10)
+            )
         }
         page.addView(actionButton("←   Back to Home", false) { navigateTo("home") }, marginParams(top = 4))
         return pageScroll(page)
@@ -908,6 +918,16 @@ class MainActivity : Activity() {
             lastStatus = "Profile could not be read or exceeds the 1 MiB import limit."
         }
         renderState()
+    }
+
+    private fun prepareAetherConnection() {
+        if (operationInProgress || !(application as RoohVpnApplication).connectionCoordinator
+                .isEngineAvailable(EngineId.AETHER)) return
+        pendingConfiguration?.fill(0)
+        pendingConfiguration = ByteArray(0)
+        pendingEngineId = EngineId.AETHER
+        lastStatus = "Starting Aether with its built-in WARP profile…"
+        requestVpnConsentAndConnect()
     }
 
     private fun requestVpnConsentAndConnect() {
