@@ -60,7 +60,6 @@ object TorConfigBuilder {
             "obfs4", "obfs3", "scramblesuit", "meek_lite", "webtunnel" -> "libobfs4proxy.so"
             "snowflake" -> "libsnowflake.so"
             "conjure" -> "libconjure.so"
-            "webtunnel" -> "libobfs4proxy.so"
             else -> null
         }
         if (plugin != null) {
