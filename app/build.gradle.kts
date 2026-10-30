@@ -44,6 +44,8 @@ dependencies {
     // One APK and one shared gomobile runtime for Xray + sing-box.
     // CI builds this combined AAR from the pinned Go sources.
     implementation(files("libs/roohvpn-core.aar"))
+    // Pinned Hev JNI runtime supplies PG CORE TUN-to-SOCKS packet forwarding.
+    implementation(files("libs/hev-socks5-tunnel.aar"))
 
     // PG CORE's Android lifecycle/API module remains fail-closed until its
     // actual packet-forwarding backend is connected and verified.
