@@ -134,6 +134,8 @@ class AetherVpnService : VpnService() {
             check(AetherHevBridge.isRunning()) { "The native TUN-to-SOCKS bridge did not become active" }
 
             running = true
+            getSystemService(NotificationManager::class.java)
+                .notify(NOTIFICATION_ID, notification("Aether VPN tunnel active"))
             null
         } catch (_: LinkageError) {
             cleanupAfterStartFailure()
@@ -203,10 +205,16 @@ class AetherVpnService : VpnService() {
                 // there is no fallback to the device's physical network.
                 worker.execute {
                     runCatching { AetherHevBridge.stop() }
-                    waitForBridgeStop()
+                    running = false
+                    if (!waitForBridgeStop()) {
+                        // Keep the TUN descriptor and foreground service alive:
+                        // closing an FD still owned by a native thread is unsafe.
+                        getSystemService(NotificationManager::class.java)
+                            .notify(NOTIFICATION_ID, notification("Aether stopped; traffic remains blocked"))
+                        return@execute
+                    }
                     runCatching { tun?.close() }
                     tun = null
-                    running = false
                     engine = null
                     AetherIdentityVault.sealPlaintext(File(filesDir, "aether-runtime"))
                     stopForeground(STOP_FOREGROUND_REMOVE)
@@ -219,13 +227,22 @@ class AetherVpnService : VpnService() {
     @Synchronized
     private fun cleanupAfterStartFailure() {
         runCatching { AetherHevBridge.stop() }
-        waitForBridgeStop()
+        if (!waitForBridgeStop()) {
+            running = false
+            return
+        }
         runCatching { tun?.close() }
         tun = null
         engine?.let { proc ->
-            runCatching { proc.destroy() }
-            runCatching { if (!proc.waitFor(1, TimeUnit.SECONDS)) proc.destroyForcibly() }
+            runCatching {
+                proc.destroy()
+                if (!proc.waitFor(1, TimeUnit.SECONDS)) {
+                    proc.destroyForcibly()
+                    proc.waitFor(2, TimeUnit.SECONDS)
+                }
+            }
         }
+        if (engine?.isAlive == true) return
         engine = null
         running = false
         AetherIdentityVault.sealPlaintext(File(filesDir, "aether-runtime"))
