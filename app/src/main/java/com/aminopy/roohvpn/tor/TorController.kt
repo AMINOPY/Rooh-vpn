@@ -109,6 +109,6 @@ class TorController(
     }
 
     private companion object {
-        val BOOTSTRAP = Regex("""Bootstrapped (\\d{1,3})%""")
+        val BOOTSTRAP = Regex("""Bootstrapped (\d{1,3})%""")
     }
 }
