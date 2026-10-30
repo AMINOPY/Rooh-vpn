@@ -269,8 +269,9 @@ class AetherVpnService : VpnService() {
 
     private fun waitForBridgeStop(): Boolean {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(4)
-        while (AetherHevBridge.isRunning() && System.nanoTime() < deadline) Thread.sleep(40)
-        return !AetherHevBridge.isRunning()
+        fun alive(): Boolean = runCatching { AetherHevBridge.isRunning() }.getOrDefault(false)
+        while (alive() && System.nanoTime() < deadline) Thread.sleep(40)
+        return !alive()
     }
 
     override fun onRevoke() {
@@ -406,5 +407,8 @@ class AetherVpnService : VpnService() {
 
         private fun failure(code: String, retryable: Boolean) =
             EngineFailure(code, "Aether could not establish or safely stop its VPN tunnel.", retryable)
+
+        private fun failure(code: String, safeMessage: String, retryable: Boolean) =
+            EngineFailure(code, safeMessage, retryable)
     }
 }
