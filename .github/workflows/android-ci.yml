@@ -156,7 +156,10 @@ jobs:
           fi
           grep -Fxq 'assets/geoip.dat' /tmp/apk-entries.txt
           grep -Fxq 'assets/geosite.dat' /tmp/apk-entries.txt
-          echo "Unified APK contains one combined Go runtime and Xray routing databases."
+          grep -Fxq 'assets/tor/bridges_default.lst' /tmp/apk-entries.txt
+          grep -Fxq 'assets/tor/geoip.gz' /tmp/apk-entries.txt
+          grep -Fxq 'assets/tor/geoip6.gz' /tmp/apk-entries.txt
+          echo "Unified APK contains the Go runtime, Tor client/transports and Tor GeoIP assets."
           sha256sum "$apk"
 
       - name: Run Android unit tests
