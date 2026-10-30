@@ -11,7 +11,9 @@ data class EngineLaunchOptions(
     val xrayHostHeader: String? = null,
     val singBoxSni: String? = null,
     val singBoxCdnEdgeIp: String? = null,
-    val singBoxHostHeader: String? = null
+    val singBoxHostHeader: String? = null,
+    /** Port of an already-started, loopback-only SOCKS5 upstream. */
+    val chainedSocksPort: Int? = null
 ) {
     fun hasXrayTransportOverrides(): Boolean =
         xraySni != null || xrayCdnEdgeIp != null || xrayHostHeader != null
@@ -21,4 +23,6 @@ data class EngineLaunchOptions(
 
     fun hasAnyTransportOverrides(): Boolean =
         hasXrayTransportOverrides() || hasSingBoxTransportOverrides()
+
+    fun hasChainedSocksUpstream(): Boolean = chainedSocksPort != null
 }
