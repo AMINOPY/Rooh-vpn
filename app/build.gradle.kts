@@ -40,6 +40,8 @@ android {
 
 dependencies {
     implementation("com.wireguard.android:tunnel:1.0.20260102")
+    // Official Psiphon Android SDK; version is pinned for reproducible builds.
+    implementation("ca.psiphon:psiphontunnel:2.0.41")
 
     // One APK and one shared gomobile runtime for Xray, sing-box, and PG CORE.
     // Keeping them in one AAR avoids duplicate gomobile runtime classes.
