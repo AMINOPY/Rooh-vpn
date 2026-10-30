@@ -24,6 +24,20 @@ class TorConfigBuilderTest {
     }
 
     @Test
+    fun geoIpFilesAreReferencedOnlyWhenPresent() {
+        val native = temporary.newFolder("native")
+        val data = temporary.newFolder("data")
+        val tor = temporary.newFolder("tor")
+        File(tor, "geoip").writeText("geoip")
+        File(tor, "geoip6").writeText("geoip6")
+        val config = TorConfigBuilder.build(TorSettings(), native, data, tor)
+
+        assertTrue(config.contains("GeoIPFile ${File(tor, "geoip").absolutePath}"))
+        assertTrue(config.contains("GeoIPv6File ${File(tor, "geoip6").absolutePath}"))
+        assertTrue(config.contains("VirtualAddrNetworkIPv6 [FC00::]/7"))
+    }
+
+    @Test
     fun snowflakeConfigUsesPackagedTransportAndDefaultAnchors() {
         val native = temporary.newFolder("native")
         File(native, "libsnowflake.so").apply {
