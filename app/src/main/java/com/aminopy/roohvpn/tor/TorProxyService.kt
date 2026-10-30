@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit
 class TorProxyService : Service() {
     @Volatile private var controller: TorController? = null
     @Volatile private var running = false
+    @Volatile private var starting = false
 
     override fun onCreate() {
         super.onCreate()
@@ -26,17 +27,24 @@ class TorProxyService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            val stopped = controller?.stop() ?: true
-            running = false
-            if (stopped) {
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf(startId)
-                completeStop(true)
-            } else completeStop(false)
+            Thread({
+                val stopped = controller?.stop() ?: true
+                running = false
+                if (stopped) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf(startId)
+                    completeStop(true)
+                } else completeStop(false)
+            }, "rooh-tor-stop").start()
             return START_NOT_STICKY
         }
 
+        if (running || starting) {
+            completeStart(running)
+            return START_NOT_STICKY
+        }
         startForeground(NOTIFICATION_ID, notification("Starting Tor…"))
+        starting = true
         Thread({
             val settings = TorSettingsRepository(this).load()
             val instance = TorController(this, settings, onProgress = { pct ->
@@ -52,12 +60,14 @@ class TorProxyService : Service() {
             controller = instance
             val started = instance.start() && instance.awaitSocksReady()
             running = started
+            starting = false
             completeStart(started)
             if (started) {
                 getSystemService(NotificationManager::class.java)
                     .notify(NOTIFICATION_ID, notification("Tor SOCKS ready on 127.0.0.1:${settings.socksPort}"))
             } else {
                 instance.stop()
+                starting = false
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf(startId)
             }
