@@ -23,19 +23,29 @@ public final class AetherNativeRuntime {
     }
 
     public static boolean isAetherAvailable(Context context) {
-        return library(context, AETHER).isFile()
-                && library(context, AETHER).canExecute()
-                && library(context, TUN_BRIDGE).isFile()
-                && library(context, HEV).isFile();
+        return isAetherAvailable(new File(context.getApplicationInfo().nativeLibraryDir));
+    }
+
+    static boolean isAetherAvailable(File nativeDir) {
+        File engine = new File(nativeDir, AETHER);
+        return engine.isFile()
+                && engine.canExecute()
+                && new File(nativeDir, TUN_BRIDGE).isFile()
+                && new File(nativeDir, HEV).isFile();
     }
 
     public static boolean isPsiphonAvailable(Context context) {
-        return library(context, PSIPHON).isFile()
-                && library(context, PSIPHON).canExecute();
+        return isPsiphonAvailable(new File(context.getApplicationInfo().nativeLibraryDir));
+    }
+
+    static boolean isPsiphonAvailable(File nativeDir) {
+        File executable = new File(nativeDir, PSIPHON);
+        return executable.isFile() && executable.canExecute();
     }
 
     public static String psiphonExecutable(Context context) {
-        File executable = library(context, PSIPHON);
-        return isPsiphonAvailable(context) ? executable.getAbsolutePath() : null;
+        File nativeDir = new File(context.getApplicationInfo().nativeLibraryDir);
+        File executable = new File(nativeDir, PSIPHON);
+        return isPsiphonAvailable(nativeDir) ? executable.getAbsolutePath() : null;
     }
 }
