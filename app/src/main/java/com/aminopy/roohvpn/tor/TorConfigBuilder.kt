@@ -57,7 +57,7 @@ object TorConfigBuilder {
         }
         appendLine("UseBridges 1")
         val plugin = when (settings.bridgeTransport) {
-            "obfs4" -> "libobfs4proxy.so"
+            "obfs4", "obfs3", "scramblesuit", "meek_lite", "webtunnel" -> "libobfs4proxy.so"
             "snowflake" -> "libsnowflake.so"
             "conjure" -> "libconjure.so"
             "webtunnel" -> "libobfs4proxy.so"
@@ -66,8 +66,8 @@ object TorConfigBuilder {
         if (plugin != null) {
             val executable = File(nativeDir, plugin)
             require(executable.isFile && executable.canExecute()) { "Tor transport is not packaged: $plugin" }
-            val transports = if (settings.bridgeTransport == "obfs4" || settings.bridgeTransport == "webtunnel") {
-                "obfs4,webtunnel"
+            val transports = if (plugin == "libobfs4proxy.so") {
+                "obfs4,obfs3,scramblesuit,meek_lite,webtunnel"
             } else settings.bridgeTransport
             appendLine("ClientTransportPlugin $transports exec ${executable.absolutePath}")
         }
@@ -80,18 +80,28 @@ object TorConfigBuilder {
                     "snowflake 192.0.2.4:80 8838024498816A039FCBBAB14E6F40A0843051FA fingerprint=8838024498816A039FCBBAB14E6F40A0843051FA"
                 )
             } else {
-                val defaults = File(torDir, "bridges_default.lst").takeIf { it.isFile }
+                val all = File(torDir, "bridges_default.lst").takeIf { it.isFile }
                     ?.readLines().orEmpty()
                     .map { it.trim() }
-                    .filter { it.startsWith("${settings.bridgeTransport} ") }
-                    .take(8)
-                defaults
+                    .filter { it.isNotEmpty() && !it.startsWith("#") }
+                val defaults = if (settings.bridgeTransport == "vanilla") {
+                    all.filter { line ->
+                        val address = line.substringBefore(' ')
+                        address.contains(':') && !address.any { it.isLetter() }
+                    }
+                } else all.filter { it.startsWith("${settings.bridgeTransport} ") }
+                defaults.take(8)
             }
         }
         require(lines.isNotEmpty()) { "No bridge lines are available for the selected transport" }
         lines.forEach { line ->
             require(line.length <= 2048 && !line.contains('\r') && !line.contains('\n')) { "Invalid bridge line" }
-            require(line.substringBefore(' ') == settings.bridgeTransport) { "Bridge transport mismatch" }
+            if (settings.bridgeTransport == "vanilla") {
+                val address = line.substringBefore(' ')
+                require(address.contains(':') && !address.any { it.isLetter() }) { "Invalid vanilla bridge address" }
+            } else {
+                require(line.substringBefore(' ') == settings.bridgeTransport) { "Bridge transport mismatch" }
+            }
             appendLine("Bridge $line")
         }
     }
