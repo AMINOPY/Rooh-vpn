@@ -30,6 +30,12 @@ class TorController(
             require(tor.isFile && tor.canExecute()) { "Tor native runtime is missing for this ABI" }
             val torDir = File(app.filesDir, "tor").apply { mkdirs() }
             val dataDir = File(app.filesDir, "tor-data").apply { mkdirs() }
+            val bridgeFile = File(torDir, "bridges_default.lst")
+            if (!bridgeFile.isFile || bridgeFile.length() == 0L) {
+                app.assets.open("tor/bridges_default.lst").use { input ->
+                    bridgeFile.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
             val torrc = File(torDir, "torrc")
             torrc.writeText(TorConfigBuilder.build(settings, nativeDir, dataDir, torDir))
             torrc.setReadable(false, false)
@@ -72,7 +78,6 @@ class TorController(
         }
     }
 
-    @Synchronized
     fun awaitSocksReady(timeoutMs: Long = 15_000): Boolean {
         val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs)
         while (System.nanoTime() < deadline && isRunning) {
