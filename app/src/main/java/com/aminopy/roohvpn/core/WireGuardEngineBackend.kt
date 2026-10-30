@@ -159,6 +159,11 @@ object DefaultEngineRegistry {
     fun create(context: Context): EngineRegistry {
         val appContext = context.applicationContext
         val backends = mutableListOf<EngineBackend>(WireGuardEngineBackend(appContext))
+        // Register Aether only when all three native pieces for this ABI are
+        // packaged. The UI must never advertise an enum-only or partial engine.
+        if (com.aminopy.roohvpn.vpn.AetherVpnService.isNativeRuntimePackaged(appContext)) {
+            backends += AetherEngineBackend(appContext)
+        }
         when (com.aminopy.roohvpn.BuildConfig.FLAVOR) {
             "singbox" -> backends += SingBoxEngineBackend(appContext)
             "multi" -> {
