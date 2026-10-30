@@ -15,8 +15,7 @@ Android apps
 ```
 
 The application package is excluded from its own VPN interface. This prevents
-Aether's own upstream sockets from looping back into the TUN. The engine SOCKS
-listener is required to pass a SOCKS5 greeting before RØH establishes the TUN.
+Aether's own upstream sockets from looping back into the TUN. The engine SOCKS listener is required to pass a SOCKS5 greeting before the forwarding bridge is started.
 The TUN then routes IPv4 and IPv6 defaults and advertises the configured DNS
 resolvers. If the engine process exits, the forwarding bridge is stopped and
 the VPN interface is not replaced with a direct route.
@@ -46,10 +45,7 @@ the original Keystore key may require Aether to provision a new identity.
 
 ## Deliberate limitations
 
-- This first backend starts the built-in MASQUE/WARP mode. It does not expose
-  Aether's optional Psiphon, Tor, Zero Trust, custom config, or routing modes.
-  Those require their own validated profile/options and native dependency
-  lifecycle and must not be advertised as enabled by this backend.
+- The first RØH backend starts the built-in MASQUE/WARP mode. The native Psiphon and Tor executables are packaged, but their modes are not exposed by the RØH UI yet; the Psiphon UDP/DNS front, Tor configuration, and their lifecycle supervision still need integration and validation.
 - A successful native build or open local SOCKS port is not proof of end-to-end
   forwarding. Real-device TCP, UDP, DNS, IPv4/IPv6, socket-leak, network-handoff,
   crash-recovery, and long-duration tests remain release gates.
