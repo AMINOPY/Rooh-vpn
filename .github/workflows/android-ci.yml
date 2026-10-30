@@ -63,7 +63,7 @@ jobs:
           gomobile init
           go work init . ../sing-box-source ../pg-core
           mkdir -p ../app/libs
-          # Bind both public APIs into one AAR. This creates one gomobile
+          # Bind all three public APIs into one AAR. This creates one gomobile
           # Java runtime and one native library instead of colliding go.Seq
           # classes from two independently-built AARs.
           gomobile bind -v -target=android -androidapi 26 \
