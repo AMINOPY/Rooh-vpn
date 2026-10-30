@@ -5,7 +5,6 @@ import java.io.File
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.concurrent.TimeUnit
-import java.util.zip.GZIPInputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
 class TorController(
@@ -40,11 +39,9 @@ class TorController(
             listOf("geoip", "geoip6").forEach { name ->
                 val database = File(torDir, name)
                 if (!database.isFile || database.length() == 0L) {
-                    // AAPT strips the .gz suffix from pre-compressed assets in the APK.
-                    app.assets.open("tor/$name").use { compressed ->
-                        GZIPInputStream(compressed).use { input ->
-                            database.outputStream().use { output -> input.copyTo(output) }
-                        }
+                    // GeoIP assets are shipped as verified raw databases.
+                    app.assets.open("tor/$name").use { input ->
+                        database.outputStream().use { output -> input.copyTo(output) }
                     }
                 }
             }
