@@ -27,23 +27,13 @@ git -C "${UPSTREAM_DIR}" fetch --depth 1 origin "${UPSTREAM_COMMIT}"
 git -C "${UPSTREAM_DIR}" checkout --detach "${UPSTREAM_COMMIT}"
 git -C "${UPSTREAM_DIR}" submodule update --init --recursive
 
-# Patch only the upstream bridge source to expose a synchronized running-state
-# query. Keep its proven native-pthread implementation and JNI_OnLoad intact.
+# Add the RØH-maintained C JNI extension to the pinned upstream translation
+# unit. Keeping the source in this repository makes the ABI addition reviewable.
 BRIDGE_SRC="${UPSTREAM_DIR}/scripts/aethertun-jni.c"
-grep -q 'Java_studio_cluvex_aether_core_TProxyService_isRunning' "${BRIDGE_SRC}" || cat >> "${BRIDGE_SRC}" <<'EOF'
-
-JNIEXPORT jboolean JNICALL
-Java_studio_cluvex_aether_core_TProxyService_isRunning(JNIEnv *env, jclass clazz)
-{
-    bool value;
-    (void)env;
-    (void)clazz;
-    pthread_mutex_lock(&lock);
-    value = running;
-    pthread_mutex_unlock(&lock);
-    return value ? JNI_TRUE : JNI_FALSE;
-}
-EOF
+RUNNING_JNI="${ROOT}/native/aether/aethertun-running-jni.c.inc"
+if ! grep -q 'Java_studio_cluvex_aether_core_TProxyService_isRunning' "${BRIDGE_SRC}"; then
+  cat "${RUNNING_JNI}" >> "${BRIDGE_SRC}"
+fi
 
 # The pinned upstream owns the complete, maintained Android native build:
 # hev TUN bridge, Aether executable, Tor pluggable transports, and Psiphon.
