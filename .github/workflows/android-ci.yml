@@ -73,15 +73,6 @@ jobs:
             ./ github.com/sagernet/sing-box/experimental/libbox github.com/AMINOPY/pg-core/mobile
           test -s ../app/libs/roohvpn-core.aar
 
-      - name: Fetch and verify pinned Hev Android TUN backend
-        run: |
-          set -euo pipefail
-          mkdir -p app/libs
-          curl --fail --location --silent --show-error \
-            https://github.com/heiher/hev-socks5-tunnel/releases/download/2.19.3/hev-socks5-tunnel.aar \
-            -o app/libs/hev-socks5-tunnel.aar
-          echo "ab6c581e6157680cfe5687ee7bbdcf95405c006c2db3701879ec44b9e5f83836  app/libs/hev-socks5-tunnel.aar" | sha256sum --check
-
       - name: Package Xray routing databases
         run: |
           set -euo pipefail
