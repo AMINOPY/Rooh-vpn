@@ -2,8 +2,8 @@
 
 ## Runtime layout
 
-RØH builds the Aether Rust engine from the pinned upstream revision and packages
-it with HEV's in-process TUN-to-SOCKS bridge:
+RØH builds the Aether Rust engine, Psiphon client, and HEV's in-process
+TUN-to-SOCKS bridge from the pinned upstream build pipeline:
 
 ```text
 Android apps
@@ -33,7 +33,7 @@ the VPN interface is not replaced with a direct route.
 
 The CI job uses the upstream Rust/NDK build recipe, packages the engine and
 runtime dependencies, and verifies the executable, HEV shared library, and
-RØH JNI bridge are present in the APK. The upstream Aether application's
+upstream `libaethertun.so` JNI bridge are present in the APK. The upstream Aether application's
 separate UI/service code is not imported; RØH owns its own Android VPN service.
 
 ## Identity handling
