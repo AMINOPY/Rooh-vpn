@@ -41,8 +41,8 @@ android {
 dependencies {
     implementation("com.wireguard.android:tunnel:1.0.20260102")
 
-    // One APK and one shared gomobile runtime for Xray + sing-box.
-    // CI builds this combined AAR from the pinned Go sources.
+    // One APK and one shared gomobile runtime for Xray, sing-box, and PG CORE.
+    // Keeping them in one AAR avoids duplicate gomobile runtime classes.
     implementation(files("libs/roohvpn-core.aar"))
     // Pinned Hev JNI runtime supplies PG CORE TUN-to-SOCKS packet forwarding.
     implementation(files("libs/hev-socks5-tunnel.aar"))
