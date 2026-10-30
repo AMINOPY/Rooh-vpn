@@ -141,24 +141,33 @@ jobs:
           apk=app/build/outputs/apk/debug/app-debug.apk
           test -s "$apk"
           unzip -Z1 "$apk" > /tmp/apk-entries.txt
-          grep -Fxq 'lib/arm64-v8a/libbox.so' /tmp/apk-entries.txt
-          grep -Fxq 'lib/arm64-v8a/libaether.so' /tmp/apk-entries.txt
-          grep -Fxq 'lib/arm64-v8a/libhev-socks5-tunnel.so' /tmp/apk-entries.txt
-          grep -Fxq 'lib/arm64-v8a/libaethertun.so' /tmp/apk-entries.txt
-          grep -Fxq 'lib/arm64-v8a/libtor.so' /tmp/apk-entries.txt
-          grep -Fxq 'lib/arm64-v8a/libobfs4proxy.so' /tmp/apk-entries.txt
-          grep -Fxq 'lib/arm64-v8a/libsnowflake.so' /tmp/apk-entries.txt
-          grep -Fxq 'lib/arm64-v8a/libconjure.so' /tmp/apk-entries.txt
+          check_entry() {
+            local entry="$1"
+            if ! grep -Fxq "$entry" /tmp/apk-entries.txt; then
+              echo "ERROR: expected APK entry is missing: $entry" >&2
+              echo "Relevant packaged entries:" >&2
+              grep -E '(^assets/|^lib/arm64-v8a/)' /tmp/apk-entries.txt | sort >&2 || true
+              exit 1
+            fi
+          }
+          check_entry 'lib/arm64-v8a/libbox.so'
+          check_entry 'lib/arm64-v8a/libaether.so'
+          check_entry 'lib/arm64-v8a/libhev-socks5-tunnel.so'
+          check_entry 'lib/arm64-v8a/libaethertun.so'
+          check_entry 'lib/arm64-v8a/libtor.so'
+          check_entry 'lib/arm64-v8a/libobfs4proxy.so'
+          check_entry 'lib/arm64-v8a/libsnowflake.so'
+          check_entry 'lib/arm64-v8a/libconjure.so'
           if grep -Fxq 'lib/arm64-v8a/libpsiphon.so' /tmp/apk-entries.txt; then
             echo "Optional Psiphon native client is packaged."
           else
             echo "Psiphon is absent; standalone Aether/WARP remains supported."
           fi
-          grep -Fxq 'assets/geoip.dat' /tmp/apk-entries.txt
-          grep -Fxq 'assets/geosite.dat' /tmp/apk-entries.txt
-          grep -Fxq 'assets/tor/bridges_default.lst' /tmp/apk-entries.txt
-          grep -Fxq 'assets/tor/geoip.gz' /tmp/apk-entries.txt
-          grep -Fxq 'assets/tor/geoip6.gz' /tmp/apk-entries.txt
+          check_entry 'assets/geoip.dat'
+          check_entry 'assets/geosite.dat'
+          check_entry 'assets/tor/bridges_default.lst'
+          check_entry 'assets/tor/geoip.gz'
+          check_entry 'assets/tor/geoip6.gz'
           echo "Unified APK contains the Go runtime, Tor client/transports and Tor GeoIP assets."
           sha256sum "$apk"
 
