@@ -29,10 +29,11 @@ Do not copy Aether application code or package its native runtime until the exac
 
 ## Release gates
 
-- [ ] Confirm approved licensing path for Aether and Psiphon components.
-- [ ] Build and package native runtime for every advertised Android ABI with reproducible checksums.
-- [ ] Implement a single TUN owner and socket-protection contract.
-- [ ] Implement upstream startup readiness, crash detection, teardown, and reconnect.
+- [ ] Confirm and document the AGPL/GPL-compatible distribution and corresponding-source path for Aether/Psiphon components.
+- [x] Add a pinned Aether/HEV native build script and ABI packaging checks to Android CI.
+- [x] Add a standalone Aether service with one TUN owner, app-package loop prevention, startup readiness, and guarded teardown.
+- [ ] Wire Aether as a managed upstream for Xray/sing-box without introducing a second TUN owner.
+- [ ] Add full Psiphon runtime lifecycle and credentials/bootstrap handling.
 - [ ] Confirm DNS/TCP/UDP and IPv4/IPv6 behavior through the full chain.
 - [ ] Verify no direct traffic escapes on startup, upstream failure, engine crash, network handoff, or disconnect.
 - [ ] Run physical-device soak tests and attach redacted evidence.
