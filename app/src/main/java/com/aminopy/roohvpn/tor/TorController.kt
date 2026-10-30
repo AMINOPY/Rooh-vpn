@@ -5,6 +5,7 @@ import java.io.File
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.concurrent.TimeUnit
+import java.util.zip.GZIPInputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
 class TorController(
@@ -34,6 +35,16 @@ class TorController(
             if (!bridgeFile.isFile || bridgeFile.length() == 0L) {
                 app.assets.open("tor/bridges_default.lst").use { input ->
                     bridgeFile.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+            listOf("geoip", "geoip6").forEach { name ->
+                val database = File(torDir, name)
+                if (!database.isFile || database.length() == 0L) {
+                    app.assets.open("tor/$name.gz").use { compressed ->
+                        GZIPInputStream(compressed).use { input ->
+                            database.outputStream().use { output -> input.copyTo(output) }
+                        }
+                    }
                 }
             }
             val torrc = File(torDir, "torrc")
