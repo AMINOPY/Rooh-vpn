@@ -15,6 +15,7 @@ class TorProxyService : Service() {
     @Volatile private var controller: TorController? = null
     @Volatile private var running = false
     @Volatile private var starting = false
+    @Volatile private var stopRequested = false
 
     override fun onCreate() {
         super.onCreate()
@@ -27,6 +28,7 @@ class TorProxyService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            stopRequested = true
             startForeground(NOTIFICATION_ID, notification("Stopping Tor…"))
             Thread({
                 val stopped = controller?.stop() ?: true
@@ -44,6 +46,7 @@ class TorProxyService : Service() {
             completeStart(running)
             return START_NOT_STICKY
         }
+        stopRequested = false
         startForeground(NOTIFICATION_ID, notification("Starting Tor…"))
         starting = true
         Thread({
@@ -59,7 +62,24 @@ class TorProxyService : Service() {
                 }
             })
             controller = instance
+            if (stopRequested) {
+                starting = false
+                completeStart(false)
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf(startId)
+                return@Thread
+            }
             val started = instance.start() && instance.awaitSocksReady()
+            if (stopRequested) {
+                instance.stop()
+                running = false
+                starting = false
+                completeStart(false)
+                completeStop(true)
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf(startId)
+                return@Thread
+            }
             running = started
             starting = false
             completeStart(started)
