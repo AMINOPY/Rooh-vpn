@@ -21,6 +21,7 @@ import android.widget.TextView
 import android.widget.Switch
 import android.widget.Spinner
 import android.widget.ArrayAdapter
+import android.widget.SeekBar
 import com.aminopy.roohvpn.tor.TorSettings
 import com.aminopy.roohvpn.tor.TorSettingsRepository
 import com.aminopy.roohvpn.tor.TorProxyService
@@ -31,12 +32,16 @@ import com.aminopy.roohvpn.core.ImportedProfileFormat
 import com.aminopy.roohvpn.core.EngineId
 import com.aminopy.roohvpn.security.EncryptedProfileStore
 import com.aminopy.roohvpn.profiles.ProfileCatalog
+import com.aminopy.roohvpn.ui.theme.RoohThemeStore
+import com.aminopy.roohvpn.ui.theme.RoohThemeProfiles
 import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /** Explicit-consent Xray/WireGuard profile connection screen; no endpoints or credentials are fabricated. */
 class MainActivity : Activity() {
+    private val themeStore by lazy { RoohThemeStore(applicationContext) }
+    private val palette get() = themeStore.colors()
     private lateinit var status: TextView
     private lateinit var contentHost: FrameLayout
     private lateinit var homeScroll: ScrollView
@@ -67,8 +72,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        window.statusBarColor = Color.rgb(8, 15, 29)
-        window.navigationBarColor = Color.rgb(8, 15, 29)
+        applyThemeChrome()
         window.decorView.systemUiVisibility = 0
 
         val page = LinearLayout(this).apply {
@@ -76,7 +80,7 @@ class MainActivity : Activity() {
             setPadding(dp(20), dp(18), dp(20), dp(28))
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.rgb(8, 15, 29), Color.rgb(13, 25, 43), Color.rgb(8, 15, 29))
+                intArrayOf(palette.backgroundTop, palette.backgroundBottom, palette.backgroundTop)
             )
         }
         val scroll = ScrollView(this).apply {
@@ -90,7 +94,7 @@ class MainActivity : Activity() {
             text = "R Ø H   /   VPN"
             textSize = 13f
             letterSpacing = 0.18f
-            setTextColor(Color.rgb(103, 232, 249))
+            setTextColor(palette.accent)
             typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
         }
         page.addView(brand, matchWrap())
@@ -100,14 +104,14 @@ class MainActivity : Activity() {
             text = "Your private\nconnection."
             textSize = 31f
             setLineSpacing(dp(1).toFloat(), 1.02f)
-            setTextColor(Color.rgb(241, 247, 255))
+            setTextColor(palette.text)
             typeface = Typeface.create("sans-serif", Typeface.BOLD)
         }
         page.addView(title, matchWrap())
         val subtitle = TextView(this).apply {
             text = "Import a trusted profile, review its engine, then connect."
             textSize = 14f
-            setTextColor(Color.rgb(157, 174, 197))
+            setTextColor(palette.secondaryText)
         }
         page.addView(subtitle, marginParams(top = 8, bottom = 20))
 
@@ -116,12 +120,12 @@ class MainActivity : Activity() {
             text = "CONNECTION STATUS"
             textSize = 11f
             letterSpacing = 0.12f
-            setTextColor(Color.rgb(103, 232, 249))
+            setTextColor(palette.accent)
             typeface = Typeface.DEFAULT_BOLD
         }
         status = TextView(this).apply {
             textSize = 15f
-            setTextColor(Color.rgb(231, 239, 250))
+            setTextColor(palette.text)
             setLineSpacing(dp(4).toFloat(), 1f)
         }
         connectionCard.addView(statusHeading, matchWrap())
@@ -138,7 +142,7 @@ class MainActivity : Activity() {
         val profileHint = TextView(this).apply {
             text = "Supported in this build: $flavorLabel. Profiles are not generated automatically."
             textSize = 13f
-            setTextColor(Color.rgb(157, 174, 197))
+            setTextColor(palette.secondaryText)
             setLineSpacing(dp(3).toFloat(), 1f)
         }
         actionsCard.addView(profileHint, marginParams(top = 7, bottom = 14))
@@ -158,7 +162,7 @@ class MainActivity : Activity() {
         val optionsHint = TextView(this).apply {
             text = "Leave these empty unless your provider gave you exact values."
             textSize = 12f
-            setTextColor(Color.rgb(157, 174, 197))
+            setTextColor(palette.secondaryText)
         }
         optionsCard.addView(optionsHint, marginParams(top = 6, bottom = 8))
         sniInput = themedInput("TLS SNI / REALITY serverName")
@@ -170,14 +174,14 @@ class MainActivity : Activity() {
         tlsRecordFragmentationSwitch = Switch(this).apply {
             text = "TLS record fragmentation (sing-box only)"
             textSize = 13f
-            setTextColor(Color.rgb(225, 237, 251))
+            setTextColor(palette.text)
             isChecked = false
         }
         optionsCard.addView(tlsRecordFragmentationSwitch, marginParams(top = 12))
         optionsCard.addView(TextView(this).apply {
             text = "Optional. Adds record_fragment to TLS-enabled sing-box outbounds. May reduce performance and may not work with every profile or transport."
             textSize = 11f
-            setTextColor(Color.rgb(157, 174, 197))
+            setTextColor(palette.secondaryText)
             setLineSpacing(dp(2).toFloat(), 1f)
         }, marginParams(top = 3))
 
@@ -185,7 +189,7 @@ class MainActivity : Activity() {
         engineCard.addView(sectionHeading("ENGINE STATUS"), matchWrap())
         engineStatus = TextView(this).apply {
             textSize = 13f
-            setTextColor(Color.rgb(197, 211, 230))
+            setTextColor(palette.secondaryText)
             setLineSpacing(dp(5).toFloat(), 1f)
             text = buildString {
                 append("Availability is not proof of a working tunnel.\n\n")
@@ -235,13 +239,13 @@ class MainActivity : Activity() {
             text = "RØH VPN  •  Private by design  •  No fabricated endpoints"
             textSize = 11f
             gravity = Gravity.CENTER
-            setTextColor(Color.rgb(112, 132, 158))
+            setTextColor(palette.secondaryText)
         }
         page.addView(footer, matchWrap())
         homeScroll = scroll
         val shell = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(8, 15, 29))
+            setBackgroundColor(palette.backgroundTop)
         }
         contentHost = FrameLayout(this)
         shell.addView(contentHost, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -249,7 +253,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             setPadding(dp(5), dp(7), dp(5), dp(7))
-            background = roundedSurface(Color.rgb(10, 20, 35), dp(18), Color.rgb(32, 49, 72))
+            background = glassSurface(palette.card, dp(18), palette.stroke)
         }
         val destinations = listOf(
             "home" to "⌂\nHome",
@@ -267,7 +271,7 @@ class MainActivity : Activity() {
                 minHeight = dp(48)
                 minWidth = 0
                 setPadding(dp(2), dp(2), dp(2), dp(2))
-                setTextColor(Color.rgb(157, 174, 197))
+                setTextColor(palette.secondaryText)
                 background = roundedSurface(Color.TRANSPARENT, dp(12), Color.TRANSPARENT)
                 setOnClickListener { navigateTo(key) }
             }
@@ -308,11 +312,11 @@ class MainActivity : Activity() {
         ))
         navButtons.forEach { (key, button) ->
             val selected = key == destination
-            button.setTextColor(if (selected) Color.rgb(103, 232, 249) else Color.rgb(157, 174, 197))
+            button.setTextColor(if (selected) palette.accent else palette.secondaryText)
             button.background = roundedSurface(
-                if (selected) Color.rgb(20, 44, 62) else Color.TRANSPARENT,
+                if (selected) palette.activeCard else Color.TRANSPARENT,
                 dp(12),
-                if (selected) Color.rgb(44, 91, 112) else Color.TRANSPARENT
+                if (selected) palette.stroke else Color.TRANSPARENT
             )
         }
         renderState()
@@ -324,26 +328,26 @@ class MainActivity : Activity() {
             setPadding(dp(20), dp(20), dp(20), dp(24))
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.rgb(8, 15, 29), Color.rgb(13, 25, 43))
+                intArrayOf(palette.backgroundTop, palette.backgroundBottom)
             )
         }
         page.addView(TextView(this).apply {
             text = "R Ø H   /   VPN"
             textSize = 12f
             letterSpacing = 0.15f
-            setTextColor(Color.rgb(103, 232, 249))
+            setTextColor(palette.accent)
             typeface = Typeface.DEFAULT_BOLD
         }, matchWrap())
         page.addView(TextView(this).apply {
             text = titleText
             textSize = 28f
-            setTextColor(Color.rgb(241, 247, 255))
+            setTextColor(palette.text)
             typeface = Typeface.create("sans-serif", Typeface.BOLD)
         }, marginParams(top = 10))
         page.addView(TextView(this).apply {
             text = subtitleText
             textSize = 13f
-            setTextColor(Color.rgb(157, 174, 197))
+            setTextColor(palette.secondaryText)
             setLineSpacing(dp(3).toFloat(), 1f)
         }, marginParams(top = 6, bottom = 18))
         return page
@@ -359,7 +363,7 @@ class MainActivity : Activity() {
         addView(TextView(this@MainActivity).apply {
             text = bodyText
             textSize = 14f
-            setTextColor(Color.rgb(197, 211, 230))
+            setTextColor(palette.secondaryText)
             setLineSpacing(dp(4).toFloat(), 1f)
         }, marginParams(top = 9))
     }
@@ -539,6 +543,7 @@ class MainActivity : Activity() {
             "TRANSPORT OVERRIDES",
             "Keep these blank unless your provider explicitly supplied the values. Incorrect overrides can prevent a connection."
         ), marginParams(bottom = 12))
+        page.addView(themeSettingsCard(), marginParams(bottom = 12))
         page.addView(optionsCardForSettings(), marginParams(bottom = 12))
         page.addView(buildTorSettingsCard(), marginParams(bottom = 12))
         page.addView(infoCard(
@@ -549,6 +554,120 @@ class MainActivity : Activity() {
         return pageScroll(page)
     }
 
+    private fun applyThemeChrome() {
+        window.statusBarColor = palette.backgroundTop
+        window.navigationBarColor = palette.backgroundTop
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            window.isNavigationBarContrastEnforced = false
+            window.isStatusBarContrastEnforced = false
+        }
+    }
+
+    private fun glassSurface(fill: Int, radius: Int, stroke: Int): GradientDrawable =
+        GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            intArrayOf(withAlpha(fill, palette.glassAlpha), fill)
+        ).apply {
+            cornerRadius = radius.toFloat()
+            setStroke(dp(1), stroke)
+        }
+
+    private fun withAlpha(color: Int, alpha: Int): Int =
+        Color.argb(
+            (Color.alpha(color) * alpha / 255).coerceIn(0, 255),
+            Color.red(color), Color.green(color), Color.blue(color)
+        )
+
+    private fun themeSettingsCard(): LinearLayout {
+        val card = card()
+        card.addView(sectionHeading("APPEARANCE · LIQUID GLASS"), matchWrap())
+        card.addView(TextView(this).apply {
+            text = "Android-only appearance controls inspired by the ZX theme system. Changes affect the app UI only; VPN engines and connection behavior are unchanged."
+            textSize = 12f
+            setTextColor(palette.secondaryText)
+            setLineSpacing(dp(3).toFloat(), 1f)
+        }, marginParams(top = 7, bottom = 12))
+
+        val currentProfile = RoohThemeProfiles.find(themeStore.profileId)
+        card.addView(actionButton("Theme profile · ${currentProfile.name}", false) {
+            val names = RoohThemeProfiles.all.map { it.name }.toTypedArray()
+            val selected = RoohThemeProfiles.all.indexOfFirst { it.id == themeStore.profileId }.coerceAtLeast(0)
+            AlertDialog.Builder(this)
+                .setTitle("Choose a theme")
+                .setSingleChoiceItems(names, selected) { dialog, which ->
+                    themeStore.profileId = RoohThemeProfiles.all[which].id
+                    themeStore.accentOverride = null
+                    dialog.dismiss()
+                    applyThemeChrome()
+                    navigateTo("settings")
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }, marginParams(bottom = 8))
+
+        card.addView(actionButton("Customize accent color", false) {
+            val choices = listOf(
+                "Iris" to 0xFF5646D6.toInt(), "Ocean" to 0xFF1E63D0.toInt(),
+                "Teal" to 0xFF00897E.toInt(), "Forest" to 0xFF2E7D32.toInt(),
+                "Amber" to 0xFFB4690E.toInt(), "Rose" to 0xFFC4326B.toInt(),
+                "Cyan" to 0xFF00838F.toInt(), "Grape" to 0xFF8E24AA.toInt()
+            )
+            AlertDialog.Builder(this)
+                .setTitle("Accent color")
+                .setItems(choices.map { it.first }.toTypedArray()) { _, which ->
+                    themeStore.accentOverride = choices[which].second
+                    applyThemeChrome()
+                    navigateTo("settings")
+                }
+                .setNeutralButton("Use profile default") { _, _ ->
+                    themeStore.accentOverride = null
+                    applyThemeChrome()
+                    navigateTo("settings")
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }, marginParams(bottom = 8))
+
+        fun appearanceSwitch(label: String, checked: Boolean, save: (Boolean) -> Unit) {
+            val toggle = Switch(this).apply {
+                text = label
+                textSize = 13f
+                setTextColor(palette.text)
+                isChecked = checked
+                setOnCheckedChangeListener { _, value ->
+                    save(value)
+                    applyThemeChrome()
+                    navigateTo("settings")
+                }
+            }
+            card.addView(toggle, marginParams(top = 4))
+        }
+        appearanceSwitch("Dark appearance", themeStore.darkMode) { themeStore.darkMode = it }
+        appearanceSwitch("AMOLED black background", themeStore.amoled) { themeStore.amoled = it }
+        appearanceSwitch("Reduce motion", themeStore.reduceMotion) { themeStore.reduceMotion = it }
+
+        card.addView(TextView(this).apply {
+            text = "Glass intensity · ${themeStore.glassLevel}%"
+            textSize = 12f
+            setTextColor(palette.secondaryText)
+        }, marginParams(top = 12))
+        val intensity = SeekBar(this).apply {
+            max = 80
+            progress = (themeStore.glassLevel - 20).coerceIn(0, 80)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {}
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                    themeStore.glassLevel = (seekBar?.progress ?: 52) + 20
+                    applyThemeChrome()
+                    navigateTo("settings")
+                }
+            })
+        }
+        card.addView(intensity, marginParams(top = 2))
+        return card
+    }
+
     private fun buildTorSettingsCard(): LinearLayout {
         val card = card()
         val repository = TorSettingsRepository(applicationContext)
@@ -557,7 +676,7 @@ class MainActivity : Activity() {
         card.addView(TextView(this).apply {
             text = "Tor is a separate local SOCKS service. Start it here, then use 127.0.0.1 and the displayed port in a compatible proxy client. Full-device Tor routing is not enabled."
             textSize = 12f
-            setTextColor(Color.rgb(157, 174, 197))
+            setTextColor(palette.secondaryText)
             setLineSpacing(dp(3).toFloat(), 1f)
         }, marginParams(top = 7, bottom = 12))
 
@@ -574,20 +693,20 @@ class MainActivity : Activity() {
                 hint = hintText
                 setText(value)
                 textSize = 13f
-                setTextColor(Color.rgb(231, 239, 250))
-                setHintTextColor(Color.rgb(112, 132, 158))
+                setTextColor(palette.text)
+                setHintTextColor(palette.secondaryText)
                 setPadding(dp(12), dp(10), dp(12), dp(10))
                 inputType = if (multiline) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
                     else InputType.TYPE_CLASS_TEXT
                 isSingleLine = !multiline
                 if (multiline) { minLines = 3; maxLines = 6; gravity = Gravity.TOP }
-                background = roundedSurface(Color.rgb(16, 29, 47), dp(10), Color.rgb(48, 67, 91))
+                background = glassSurface(palette.input, dp(12), palette.stroke)
             }
         }
         fun toggle(label: String, checked: Boolean): Switch = Switch(this).apply {
             text = label
             textSize = 13f
-            setTextColor(Color.rgb(225, 237, 251))
+            setTextColor(palette.text)
             isChecked = checked
         }
 
@@ -612,9 +731,9 @@ class MainActivity : Activity() {
         val isolateAddress = toggle("Isolate destination address", settings.isolateDestAddr)
         val isolatePort = toggle("Isolate destination port", settings.isolateDestPort)
 
-        card.addView(TextView(this).apply { text = "Bridge mode"; setTextColor(Color.rgb(197, 211, 230)); textSize = 12f }, marginParams(top = 4))
+        card.addView(TextView(this).apply { text = "Bridge mode"; setTextColor(palette.secondaryText); textSize = 12f }, marginParams(top = 4))
         card.addView(mode, marginParams(top = 4))
-        card.addView(TextView(this).apply { text = "Bridge transport"; setTextColor(Color.rgb(197, 211, 230)); textSize = 12f }, marginParams(top = 10))
+        card.addView(TextView(this).apply { text = "Bridge transport"; setTextColor(palette.secondaryText); textSize = 12f }, marginParams(top = 10))
         card.addView(transport, marginParams(top = 4))
         card.addView(ownBridges, marginParams(top = 8))
         card.addView(enabledBridges, marginParams(top = 6))
@@ -750,7 +869,8 @@ class MainActivity : Activity() {
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(16), dp(16), dp(16), dp(16))
-        background = roundedSurface(Color.rgb(17, 30, 49), dp(20), Color.rgb(39, 57, 81))
+        background = glassSurface(palette.card, dp(22), palette.stroke)
+        elevation = dp(2).toFloat()
     }
 
     private fun roundedSurface(fill: Int, radius: Int, stroke: Int) = GradientDrawable().apply {
@@ -763,7 +883,7 @@ class MainActivity : Activity() {
         text = value
         textSize = 11f
         letterSpacing = 0.12f
-        setTextColor(Color.rgb(170, 190, 216))
+        setTextColor(palette.secondaryText)
         typeface = Typeface.DEFAULT_BOLD
     }
 
@@ -773,11 +893,11 @@ class MainActivity : Activity() {
             isAllCaps = false
             textSize = 14f
             typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-            setTextColor(if (primary) Color.rgb(5, 25, 40) else Color.rgb(225, 237, 251))
+            setTextColor(if (primary) palette.onAccent else palette.text)
             background = roundedSurface(
-                if (primary) Color.rgb(103, 232, 249) else Color.rgb(25, 43, 66),
+                if (primary) palette.accent else palette.activeCard,
                 dp(14),
-                if (primary) Color.rgb(103, 232, 249) else Color.rgb(53, 75, 103)
+                if (primary) palette.accent else palette.stroke
             )
             minHeight = dp(48)
             setPadding(dp(12), dp(4), dp(12), dp(4))
@@ -789,9 +909,9 @@ class MainActivity : Activity() {
         maxLines = 1
         textSize = 14f
         setTextColor(Color.rgb(235, 243, 255))
-        setHintTextColor(Color.rgb(119, 140, 167))
+        setHintTextColor(palette.secondaryText)
         inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-        background = roundedSurface(Color.rgb(10, 21, 36), dp(12), Color.rgb(45, 65, 91))
+        background = glassSurface(palette.input, dp(14), palette.stroke)
         setPadding(dp(12), dp(10), dp(12), dp(10))
     }
 
