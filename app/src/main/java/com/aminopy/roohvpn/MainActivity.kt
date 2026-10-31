@@ -73,7 +73,6 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
 
         applyThemeChrome()
-        window.decorView.systemUiVisibility = 0
 
         val page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -557,6 +556,9 @@ class MainActivity : Activity() {
     private fun applyThemeChrome() {
         window.statusBarColor = palette.backgroundTop
         window.navigationBarColor = palette.backgroundTop
+        window.decorView.systemUiVisibility = if (palette.dark) 0 else {
+            View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        }
         if (android.os.Build.VERSION.SDK_INT >= 29) {
             window.isNavigationBarContrastEnforced = false
             window.isStatusBarContrastEnforced = false
