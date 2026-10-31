@@ -67,6 +67,10 @@ class RoohThemeStore(context: Context) {
         get() = prefs.getBoolean("amoled", false)
         set(value) { prefs.edit().putBoolean("amoled", value).apply() }
 
+    var accentOverride: Int?
+        get() = prefs.getInt("accent_override", -1).takeIf { it != -1 }
+        set(value) { prefs.edit().putInt("accent_override", value ?: -1).apply() }
+
     var reduceMotion: Boolean
         get() = prefs.getBoolean("reduce_motion", false)
         set(value) { prefs.edit().putBoolean("reduce_motion", value).apply() }
@@ -81,7 +85,7 @@ class RoohThemeStore(context: Context) {
         val black = amoled && dark
         val alpha = (glassLevel * 255 / 100).coerceIn(40, 255)
         return RoohThemeColors(
-            accent = p.accent,
+            accent = accentOverride ?: p.accent,
             onAccent = if (Color.luminance(p.accent) > 0.55f) 0xFF10131A.toInt() else Color.WHITE,
             connected = p.connected,
             download = p.download,
