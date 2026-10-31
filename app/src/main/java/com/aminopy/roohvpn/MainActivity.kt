@@ -908,7 +908,7 @@ class MainActivity : Activity() {
         hint = label
         maxLines = 1
         textSize = 14f
-        setTextColor(Color.rgb(235, 243, 255))
+        setTextColor(palette.text)
         setHintTextColor(palette.secondaryText)
         inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         background = glassSurface(palette.input, dp(14), palette.stroke)
