@@ -628,6 +628,36 @@ class MainActivity : Activity() {
                 .show()
         }, marginParams(bottom = 8))
 
+        card.addView(actionButton("Custom HEX accent", false) {
+            val hexInput = EditText(this).apply {
+                hint = "#RRGGBB"
+                setSingleLine(true)
+                setTextColor(palette.text)
+                setHintTextColor(palette.secondaryText)
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                background = glassSurface(palette.input, dp(12), palette.stroke)
+            }
+            AlertDialog.Builder(this)
+                .setTitle("Custom accent color")
+                .setMessage("Enter a six-digit HEX color, for example #12A594.")
+                .setView(hexInput)
+                .setPositiveButton("Apply") { _, _ ->
+                    val raw = hexInput.text.toString().trim().removePrefix("#")
+                    val parsed = raw.takeIf { it.matches(Regex("[0-9a-fA-F]{6}")) }
+                        ?.let { runCatching { android.graphics.Color.parseColor("#$it") }.getOrNull() }
+                    if (parsed == null) {
+                        lastStatus = "Invalid color. Use the format #RRGGBB."
+                        renderState()
+                    } else {
+                        themeStore.accentOverride = parsed
+                        applyThemeChrome()
+                        navigateTo("settings")
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }, marginParams(bottom = 8))
+
         fun appearanceSwitch(label: String, checked: Boolean, save: (Boolean) -> Unit) {
             val toggle = Switch(this).apply {
                 text = label
