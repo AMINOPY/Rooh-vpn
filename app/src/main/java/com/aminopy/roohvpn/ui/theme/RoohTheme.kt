@@ -86,7 +86,7 @@ class RoohThemeStore(context: Context) {
         val alpha = (glassLevel * 255 / 100).coerceIn(40, 255)
         return RoohThemeColors(
             accent = accentOverride ?: p.accent,
-            onAccent = if (Color.luminance(p.accent) > 0.55f) 0xFF10131A.toInt() else Color.WHITE,
+            onAccent = if (Color.luminance(accentOverride ?: p.accent) > 0.55f) 0xFF10131A.toInt() else Color.WHITE,
             connected = p.connected,
             download = p.download,
             upload = p.upload,
